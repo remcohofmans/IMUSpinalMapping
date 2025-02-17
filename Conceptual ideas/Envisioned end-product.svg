@@ -1,0 +1,101 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with grid -->
+  <rect width="800" height="600" fill="#f8f9fa"/>
+  <g stroke="#e5e5e5" stroke-width="1">
+    <path d="M0,50 h800 M0,150 h800 M0,250 h800 M0,350 h800 M0,450 h800"/>
+    <path d="M100,0 v600 M300,0 v600 M500,0 v600 M700,0 v600"/>
+  </g>
+
+  <!-- Spine Reference (Light Gray) -->
+  <path d="M300,50 C300,150 320,200 300,250 C280,300 300,350 300,400 C300,450 280,500 300,550" 
+        stroke="#dddddd" 
+        fill="none" 
+        stroke-width="60"
+        stroke-opacity="0.3"/>
+
+  <!-- Main Device -->
+  <g transform="translate(250,20)">
+    <!-- Flexible PCB Base -->
+    <path d="M50,50 C50,150 70,200 50,250 C30,300 50,350 50,400 C50,450 30,500 50,550" 
+          stroke="#e0e0e0" 
+          fill="none" 
+          stroke-width="40"/>
+    
+    <!-- Silicone Cover -->
+    <path d="M50,50 C50,150 70,200 50,250 C30,300 50,350 50,400 C50,450 30,500 50,550" 
+          stroke="#b2dfdb" 
+          fill="none" 
+          stroke-width="50" 
+          stroke-opacity="0.6"/>
+
+    <!-- IMU Sensors (5 units) -->
+    <g>
+      <!-- C7 Sensor (Cervical) -->
+      <rect x="35" y="50" width="30" height="30" fill="#81c784" rx="5"/>
+      <circle cx="50" cy="65" r="8" fill="#43a047"/>
+      <text x="75" y="70" fill="#37474f" font-size="12">C7</text>
+      
+      <!-- T4 Sensor (Upper Thoracic) -->
+      <rect x="35" y="175" width="30" height="30" fill="#81c784" rx="5"/>
+      <circle cx="50" cy="190" r="8" fill="#43a047"/>
+      <text x="75" y="195" fill="#37474f" font-size="12">T4</text>
+      
+      <!-- T8 Sensor (Mid Thoracic) -->
+      <rect x="35" y="300" width="30" height="30" fill="#81c784" rx="5"/>
+      <circle cx="50" cy="315" r="8" fill="#43a047"/>
+      <text x="75" y="320" fill="#37474f" font-size="12">T8</text>
+
+      <!-- T12 Sensor (Lower Thoracic) -->
+      <rect x="35" y="425" width="30" height="30" fill="#81c784" rx="5"/>
+      <circle cx="50" cy="440" r="8" fill="#43a047"/>
+      <text x="75" y="445" fill="#37474f" font-size="12">T12</text>
+      
+      <!-- L3 Sensor (Lumbar) -->
+      <rect x="35" y="525" width="30" height="30" fill="#81c784" rx="5"/>
+      <circle cx="50" cy="540" r="8" fill="#43a047"/>
+      <text x="75" y="545" fill="#37474f" font-size="12">L3</text>
+    </g>
+
+    <!-- Control Unit -->
+    <g transform="translate(20,0)">
+      <rect x="0" y="0" width="60" height="40" fill="#90a4ae" rx="10"/>
+      <circle cx="45" cy="20" r="5" fill="#ff7043"/> <!-- Power LED -->
+      <rect x="10" y="15" width="20" height="10" fill="#78909c"/> <!-- Button -->
+      <text x="70" y="25" fill="#37474f" font-size="12">Control Unit</text>
+    </g>
+
+    <!-- Measurement Reference Lines -->
+    <g stroke="#90a4ae" stroke-width="1" stroke-dasharray="4">
+      <line x1="100" y1="65" x2="150" y2="65"/>
+      <line x1="100" y1="190" x2="150" y2="190"/>
+      <line x1="100" y1="315" x2="150" y2="315"/>
+      <line x1="100" y1="440" x2="150" y2="440"/>
+      <line x1="100" y1="540" x2="150" y2="540"/>
+    </g>
+  </g>
+
+  <!-- Technical Specifications -->
+  <g transform="translate(500,50)">
+    <rect width="250" height="200" fill="white" stroke="#e0e0e0" rx="5"/>
+    <text x="10" y="30" fill="#37474f" font-size="14" font-weight="bold">Technical Specifications:</text>
+    
+    <!-- Specs List -->
+    <g font-size="12" fill="#37474f">
+      <text x="10" y="55">• 5x MPU6050 IMU Sensors</text>
+      <text x="10" y="75">• Sampling Rate: 100Hz</text>
+      <text x="10" y="95">• Resolution: 16-bit</text>
+      <text x="10" y="115">• Battery Life: 8+ hours</text>
+      <text x="10" y="135">• Total Length: 500mm</text>
+      <text x="10" y="155">• Weight: ~90g</text>
+      <text x="10" y="175">• IP67 Waterproof Rating</text>
+    </g>
+  </g>
+
+  <!-- Dimensions -->
+  <g stroke="#90a4ae" stroke-width="1">
+    <line x1="200" y1="70" x2="200" y2="570"/>
+    <line x1="190" y1="70" x2="210" y2="70"/>
+    <line x1="190" y1="570" x2="210" y2="570"/>
+    <text x="165" y="320" fill="#37474f" font-size="12" transform="rotate(-90, 165, 320)">500mm Total Length</text>
+  </g>
+</svg>
