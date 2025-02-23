@@ -1,0 +1,106 @@
+# Hardware Components
+
+## Core Components
+1. IMU Sensors (MPU6050 or BNO055)
+   - Quantity: 3-5 units
+   - Requirements:
+     - 6-axis (accelerometer + gyroscope)
+     - I2C interface
+     - Update rate: ≥100Hz
+     - Resolution: 16-bit
+     - Cost per unit: ~$10-15
+
+2. Microcontroller (ESP32)
+   - Features needed:
+     - Multiple I2C buses
+     - Bluetooth/WiFi connectivity
+     - Low power consumption
+     - Cost: ~$5-8
+
+3. Battery System
+   - 3.7V LiPo battery
+   - 500mAh capacity
+   - Built-in charging circuit
+   - Battery protection circuit
+   - Cost: ~$8-12
+
+## Enclosure Components
+1. Flexible PCB
+   - Length: 30-40cm
+   - Width: 1.5cm
+   - Multiple sensor mounting points
+   - Cost: ~$20-30 for small batch
+
+2. Medical-grade Silicone Cover
+   - Biocompatible
+   - Waterproof rating: IP67
+   - Thickness: 1-2mm
+   - Cost: ~$15-20
+
+3. Mounting System
+   - Medical-grade adhesive pads
+   - Reusable straps
+   - Hypoallergenic material
+   - Cost: ~$5-10
+
+# Software Components
+
+## Firmware
+1. Sensor Management
+   - IMU initialization
+   - Multi-sensor synchronization
+   - Data sampling (100Hz)
+   - Low-pass filtering
+
+2. Data Processing
+   - Kalman filter implementation
+   - Orientation calculation
+   - Curvature estimation
+   - Real-time calibration
+
+3. Communication
+   - Bluetooth Low Energy protocol
+   - Data packaging
+   - Error handling
+   - Battery management
+
+## Mobile Application
+1. Core Features
+   - Real-time measurement display
+   - Historical data tracking
+   - Patient profiles
+   - Measurement export
+
+2. Analysis Tools
+   - Spine curvature visualization
+   - Progress tracking
+   - Report generation
+   - Data export (CSV/PDF)
+
+# Total Cost Breakdown
+- Hardware: $70-100
+- PCB Manufacturing: $20-30
+- Enclosure: $20-30
+- Assembly: $30-50
+- Software Development (one-time): $5000-10000
+
+Estimated total cost per unit (at 100 units): $150-200
+
+# Certification Requirements
+1. Medical Device Certification
+   - FDA Class I Medical Device
+   - CE marking for European market
+   - ISO 13485 compliance
+
+2. Safety Standards
+   - IEC 60601-1 (Medical electrical equipment)
+   - Biocompatibility testing
+   - EMC compliance
+
+# Technical Specifications
+1. Measurement Accuracy: ±2mm
+2. Battery Life: 8+ hours continuous use
+3. Wireless Range: 10m
+4. Data Rate: 100Hz
+5. Total Weight: <100g
+6. Operating Temperature: 10-40°C
