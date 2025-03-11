@@ -60,7 +60,7 @@ bool StorageManager::loadCalibrationFromEEPROM() {
   // Read calibration data for all units
   for (int i = 0; i < NO_OF_UNITS; i++) {
     CalibrationData data;
-    EEPROM.get(address, data);
+    EEPROM.get(address, data);  // Reads calibration data from EEPROM at address 'address' into the data object
     calibrationManager->setCalibrationData(i, data);
     address += sizeof(CalibrationData);
   }
