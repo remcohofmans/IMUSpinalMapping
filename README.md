@@ -6,4 +6,4 @@ to provide high-fidelity motion tracking and orientation measurements. While the
 Most of the time, temporal influences still unevitably downgrade the quality of the data. 
 
 At the system's core, an ESP32 microcontroller processes the multi-sensor data stream and enables wireless transmission for real-time analysis (with BLE being the proposed technology). 
-This architecture supports immediate biofeedback for posture correction, creating applications ranging from clinical rehabilitation to preventative spinal health management. 
+This architecture supports immediate biofeedback for posture profiling and (bedding) advicement, creating applications ranging from clinical rehabilitation to preventative spinal health management. 
