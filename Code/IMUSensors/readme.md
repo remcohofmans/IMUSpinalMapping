@@ -1,7 +1,7 @@
-![ESP32 + 2x ICM-20948 breakout boards](https://github.com/user-attachments/assets/afadcc30-d6f2-4d2e-b9c2-1e757073446c)
+![Lateral extension](https://github.com/user-attachments/assets/afadcc30-d6f2-4d2e-b9c2-1e757073446c)
 
 
-https://github.com/user-attachments/assets/38adc208-5c5b-4c4c-b61a-d0a6b7f35e00
+[ESP32 + 2x ICM-20948 breakout boards](https://github.com/user-attachments/assets/38adc208-5c5b-4c4c-b61a-d0a6b7f35e00)
 
 # IMU Sensor Management System Documentation
 
