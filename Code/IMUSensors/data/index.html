@@ -1,313 +1,253 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>IMU Sensor Visualization</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
-    }
-    .header {
-      background-color: #333;
-      color: white;
-      padding: 10px;
-      text-align: center;
-      font-size: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .status {
-      font-size: 14px;
-      padding: 5px 10px;
-      border-radius: 5px;
-      background-color: #4CAF50;
-      color: white;
-    }
-    .container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-around;
-      padding: 20px;
-    }
-    .sensor-box {
-      background-color: white;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      margin: 10px;
-      padding: 15px;
-      min-width: 300px;
-      flex: 1;
-    }
-    .sensor-title {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 5px;
-    }
-    .sensor-canvas {
-      width: 100%;
-      height: 250px;
-      margin-bottom: 10px;
-      border: 1px solid #ddd;
-    }
-    .sensor-data {
-      font-size: 14px;
-      font-family: monospace;
-    }
-    .axis-indicator {
-      display: flex;
-      justify-content: center;
-      margin-top: 10px;
-    }
-    .axis {
-      margin: 0 10px;
-      display: flex;
-      align-items: center;
-    }
-    .axis-color {
-      width: 15px;
-      height: 15px;
-      margin-right: 5px;
-    }
-    .x-axis { background-color: red; }
-    .y-axis { background-color: green; }
-    .z-axis { background-color: blue; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMU Sensor Visualization</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 300px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: rgba(0, 128, 0, 0.7);
+            color: white;
+        }
+        .disconnected {
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+        }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <div>IMU Sensor Visualization</div>
-    <div id="connection-status" class="status">Connected</div>
-  </div>
-  
-  <div class="container">
-    <div class="sensor-box">
-      <div class="sensor-title">Sensor Unit 1</div>
-      <canvas id="canvas1" class="sensor-canvas" width="300" height="250"></canvas>
-      <div id="data1" class="sensor-data">Roll: 0.00°, Pitch: 0.00°, Yaw: 0.00°</div>
-      <div class="axis-indicator">
-        <div class="axis"><div class="axis-color x-axis"></div>X (Roll)</div>
-        <div class="axis"><div class="axis-color y-axis"></div>Y (Pitch)</div>
-        <div class="axis"><div class="axis-color z-axis"></div>Z (Yaw)</div>
-      </div>
+    <div id="info">
+        <h2>IMU Sensor Data</h2>
+        <div id="sensor0">
+            <h3>Sensor 1</h3>
+            <p>Roll: <span id="roll0">0.0</span>°</p>
+            <p>Pitch: <span id="pitch0">0.0</span>°</p>
+            <p>Yaw: <span id="yaw0">0.0</span>°</p>
+        </div>
+        <div id="sensor1">
+            <h3>Sensor 2</h3>
+            <p>Roll: <span id="roll1">0.0</span>°</p>
+            <p>Pitch: <span id="pitch1">0.0</span>°</p>
+            <p>Yaw: <span id="yaw1">0.0</span>°</p>
+        </div>
     </div>
+    <div id="status" class="disconnected">Disconnected</div>
+
+    <!-- Import three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
-    <div class="sensor-box">
-      <div class="sensor-title">Sensor Unit 2</div>
-      <canvas id="canvas2" class="sensor-canvas" width="300" height="250"></canvas>
-      <div id="data2" class="sensor-data">Roll: 0.00°, Pitch: 0.00°, Yaw: 0.00°</div>
-      <div class="axis-indicator">
-        <div class="axis"><div class="axis-color x-axis"></div>X (Roll)</div>
-        <div class="axis"><div class="axis-color y-axis"></div>Y (Pitch)</div>
-        <div class="axis"><div class="axis-color z-axis"></div>Z (Yaw)</div>
-      </div>
-    </div>
-  </div>
-  
-  <script>
-    // Canvas visualization setup
-    const sensorCanvases = [];
-    const sensorContexts = [];
-    
-    // Setup 2D visualization for a sensor
-    function setupVisualization(index) {
-      const canvasId = `canvas${index + 1}`;
-      const canvas = document.getElementById(canvasId);
-      const ctx = canvas.getContext('2d');
-      
-      // Store references
-      sensorCanvases[index] = canvas;
-      sensorContexts[index] = ctx;
-      
-      // Initial render
-      drawSensor(ctx, canvas.width, canvas.height, 0, 0, 0);
-      
-      return { canvas, ctx };
-    }
-    
-    // Setup visualizations for both sensors
-    setupVisualization(0);
-    setupVisualization(1);
-    
-    // Draw a sensor with given orientation angles
-    function drawSensor(ctx, width, height, roll, pitch, yaw) {
-      // Clear the canvas
-      ctx.clearRect(0, 0, width, height);
-      
-      // Center of the canvas
-      const centerX = width / 2;
-      const centerY = height / 2;
-      
-      // Size of the rectangle representing the sensor
-      const sensorWidth = 120;
-      const sensorHeight = 60;
-      
-      // Convert degrees to radians
-      const rollRad = roll * Math.PI / 180;
-      const pitchRad = pitch * Math.PI / 180;
-      const yawRad = yaw * Math.PI / 180;
-      
-      // Save the current state
-      ctx.save();
-      
-      // Move to the center of the canvas
-      ctx.translate(centerX, centerY);
-      
-      // Apply rotations (yaw is a rotation around the vertical axis)
-      ctx.rotate(yawRad);
-      
-      // Draw the main rectangle
-      ctx.fillStyle = '#ddd';
-      ctx.fillRect(-sensorWidth/2, -sensorHeight/2, sensorWidth, sensorHeight);
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-sensorWidth/2, -sensorHeight/2, sensorWidth, sensorHeight);
-      
-      // Apply pitch rotation visually by changing the height
-      const pitchEffect = Math.cos(pitchRad);
-      
-      // Draw direction indicator (front of sensor)
-      ctx.fillStyle = '#44a';
-      ctx.beginPath();
-      ctx.moveTo(sensorWidth/2, 0);
-      ctx.lineTo(sensorWidth/2 + 20, -10);
-      ctx.lineTo(sensorWidth/2 + 20, 10);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Draw roll indicator
-      ctx.save();
-      ctx.rotate(rollRad);
-      ctx.fillStyle = 'red';
-      ctx.fillRect(-5, -sensorHeight/2 - 15, 10, 15);
-      ctx.restore();
-      
-      // Draw axes
-      // X-axis (roll) - red
-      ctx.strokeStyle = 'red';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(40, 0);
-      ctx.stroke();
-      
-      // Y-axis (pitch) - green
-      ctx.strokeStyle = 'green';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(0, -40 * pitchEffect);
-      ctx.stroke();
-      
-      // Z-axis (yaw) - blue
-      ctx.strokeStyle = 'blue';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(0, 0); // Z-axis would come out of the screen
-      ctx.arc(0, 0, 10, 0, 2 * Math.PI);
-      ctx.stroke();
-      
-      // Restore the saved state
-      ctx.restore();
-    }
-    
-    // Update sensor visualization with rotation data
-    function updateSensorVisualization(sensorId, roll, pitch, yaw) {
-      const ctx = sensorContexts[sensorId];
-      const canvas = sensorCanvases[sensorId];
-      
-      if (!ctx || !canvas) {
-        console.error("Canvas for sensor " + sensorId + " not found");
-        return;
-      }
-      
-      drawSensor(ctx, canvas.width, canvas.height, roll, pitch, yaw);
-    }
-    
-    // Update all sensor visualizations
-    function updateSensorVisualizations(data) {
-      if (data.sensors) {
-        data.sensors.forEach(sensor => {
-          const id = sensor.id;
-          const orientation = sensor.orientation;
-          
-          // Update 2D visualization
-          updateSensorVisualization(id, orientation.roll, orientation.pitch, orientation.yaw);
-          
-          // Update text display
-          const dataElement = document.getElementById(`data${id + 1}`);
-          if (dataElement) {
-            dataElement.textContent = `Roll: ${orientation.roll.toFixed(2)}°, Pitch: ${orientation.pitch.toFixed(2)}°, Yaw: ${orientation.yaw.toFixed(2)}°`;
-          }
-        });
-      }
-    }
-    
-    // Handle window resize
-    window.addEventListener('resize', () => {
-      for (let i = 0; i < 2; i++) {
-        const canvas = sensorCanvases[i];
-        if (canvas) {
-          const rect = canvas.getBoundingClientRect();
-          canvas.width = rect.width;
-          canvas.height = rect.height;
-          
-          // Redraw with current values
-          const dataElement = document.getElementById(`data${i + 1}`);
-          const text = dataElement.textContent;
-          const roll = parseFloat(text.match(/Roll: ([-\d.]+)°/)[1]) || 0;
-          const pitch = parseFloat(text.match(/Pitch: ([-\d.]+)°/)[1]) || 0;
-          const yaw = parseFloat(text.match(/Yaw: ([-\d.]+)°/)[1]) || 0;
-          
-          drawSensor(sensorContexts[i], canvas.width, canvas.height, roll, pitch, yaw);
+    <script>
+        // Create WebSocket connection
+        let wsUrl = `ws://${window.location.hostname}/ws`;
+        if (window.location.hostname === '') {
+            // When running locally, connect to ESP32 IP
+            wsUrl = 'ws://YOUR_ESP32_IP_ADDRESS/ws';
         }
-      }
-    });
-    
-    // WebSocket connection
-    const connectWebSocket = () => {
-      const socket = new WebSocket(`ws://${window.location.hostname}/ws`);
-      console.log(`Connecting to websocket at ws://${window.location.hostname}/ws`);
-      
-      socket.onopen = function(e) {
-        console.log('WebSocket connection established');
-        document.getElementById('connection-status').textContent = 'Connected';
-        document.getElementById('connection-status').style.backgroundColor = '#4CAF50';
-      };
-      
-      socket.onmessage = function(event) {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('Received data:', data);
-          updateSensorVisualizations(data);
-        } catch (error) {
-          console.error('Error processing message:', error);
-        }
-      };
-      
-      socket.onclose = function(event) {
-        console.log('WebSocket connection closed');
-        document.getElementById('connection-status').textContent = 'Disconnected';
-        document.getElementById('connection-status').style.backgroundColor = '#f44336';
         
-        // Try to reconnect after 5 seconds
-        setTimeout(connectWebSocket, 5000);
-      };
-      
-      socket.onerror = function(error) {
-        console.error('WebSocket error:', error);
-        document.getElementById('connection-status').textContent = 'Error';
-        document.getElementById('connection-status').style.backgroundColor = '#f44336';
-      };
-      
-      return socket;
-    };
-    
-    // Initialize WebSocket connection
-    let websocket = connectWebSocket();
-  </script>
+        let socket;
+        let reconnectInterval;
+        let scene, camera, renderer;
+        let sensorModels = [];
+        
+        // Initialize three.js
+        function initThree() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x333333);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Create coordinate axes
+            const axesHelper = new THREE.AxesHelper(3);
+            scene.add(axesHelper);
+            
+            // Create sensor models
+            createSensorModel(0, -1.5, 0, 0); // Sensor 1 on the left
+            createSensorModel(1, 1.5, 0, 0);  // Sensor 2 on the right
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start animation loop
+            animate();
+        }
+        
+        // Create a 3D model to represent a sensor
+        function createSensorModel(id, x, y, z) {
+            // Create a group to hold the sensor objects
+            const sensorGroup = new THREE.Group();
+            sensorGroup.position.set(x, y, z);
+            scene.add(sensorGroup);
+            
+            // Create the main box for the sensor
+            const geometry = new THREE.BoxGeometry(1, 0.2, 1.5);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: id === 0 ? 0x3498db : 0xe74c3c,
+                flatShading: true
+            });
+            const mainBox = new THREE.Mesh(geometry, material);
+            sensorGroup.add(mainBox);
+            
+            // Add directional indicator (arrow)
+            const arrowGeometry = new THREE.ConeGeometry(0.2, 0.5, 8);
+            const arrowMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xffffff,
+                flatShading: true
+            });
+            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            arrow.position.z = 0.8;
+            arrow.rotation.x = Math.PI / 2;
+            sensorGroup.add(arrow);
+            
+            // Add local axes to the sensor
+            const axesHelper = new THREE.AxesHelper(0.8);
+            sensorGroup.add(axesHelper);
+            
+            // Store the reference to update later
+            sensorModels[id] = sensorGroup;
+        }
+        
+        // Connect to WebSocket server
+        function connectWebSocket() {
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function() {
+                console.log('WebSocket connection established');
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'connected';
+                
+                // Clear reconnect interval if it exists
+                if (reconnectInterval) {
+                    clearInterval(reconnectInterval);
+                    reconnectInterval = null;
+                }
+            };
+            
+            socket.onclose = function() {
+                console.log('WebSocket connection closed');
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'disconnected';
+                
+                // Try to reconnect every 5 seconds
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(connectWebSocket, 5000);
+                }
+            };
+            
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+            
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateSensorData(data);
+                } catch (e) {
+                    console.error('Error parsing JSON:', e);
+                }
+            };
+        }
+        
+        // Update sensor data in UI and 3D models
+        function updateSensorData(data) {
+            if (!data.sensors) return;
+            
+            data.sensors.forEach(sensor => {
+                const id = sensor.id;
+                const orientation = sensor.orientation;
+                
+                // Update text display
+                document.getElementById(`roll${id}`).textContent = orientation.roll.toFixed(1);
+                document.getElementById(`pitch${id}`).textContent = orientation.pitch.toFixed(1);
+                document.getElementById(`yaw${id}`).textContent = orientation.yaw.toFixed(1);
+                
+                // Show the sensor div
+                document.getElementById(`sensor${id}`).style.display = 'block';
+                
+                // Update 3D model orientation
+                if (sensorModels[id]) {
+                    // Convert degrees to radians
+                    const rollRad = (orientation.roll * Math.PI) / 180;
+                    const pitchRad = (orientation.pitch * Math.PI) / 180;
+                    const yawRad = (orientation.yaw * Math.PI) / 180;
+                    
+                    // Apply rotations in ZYX order (yaw, pitch, roll)
+                    sensorModels[id].rotation.set(0, 0, 0); // Reset rotation
+                    sensorModels[id].rotateY(rollRad);  // Roll around y-axis
+                    sensorModels[id].rotateZ(pitchRad); // Pitch around z-axis
+                    sensorModels[id].rotateX(yawRad);   // Yaw around x-axis
+                }
+            });
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Add any animations or interactions here
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize the app
+        function init() {
+            // Hide sensor displays initially
+            document.getElementById('sensor0').style.display = 'none';
+            document.getElementById('sensor1').style.display = 'none';
+            
+            // Initialize three.js
+            initThree();
+            
+            // Connect to WebSocket
+            connectWebSocket();
+        }
+        
+        // Start the application when page loads
+        window.onload = init;
+    </script>
 </body>
 </html>

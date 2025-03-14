@@ -56,21 +56,100 @@ void FilterManager::initializeFilters() {
     kalman_accel_z[i].q = 0.01;
     kalman_accel_z[i].r = 0.1;
     
-    // Gyroscope Kalman filters
+    // Gyroscope Kalman filters - configured for spine movements
+    
+    // X-axis rotation rate - Axial Rotation
     kalman_gyro_x[i].x = 0;
     kalman_gyro_x[i].p = 1;
-    kalman_gyro_x[i].q = 0.001;
-    kalman_gyro_x[i].r = 0.03;
-
+    kalman_gyro_x[i].q = 0.0006;  // Higher restriction axial rotation
+    kalman_gyro_x[i].r = 0.035;   // Slightly increased measurement noise
+    
+    // Y-axis rotation rate - Flexion/Extension
     kalman_gyro_y[i].x = 0;
     kalman_gyro_y[i].p = 1;
-    kalman_gyro_y[i].q = 0.001;
-    kalman_gyro_y[i].r = 0.03;
-
+    kalman_gyro_y[i].q = 0.0009;  // Lower restriction for flexion/extension
+    kalman_gyro_y[i].r = 0.03;    // Standard measurement noise
+    
+    // Z-axis rotation rate - Lateral Bending
     kalman_gyro_z[i].x = 0;
     kalman_gyro_z[i].p = 1;
-    kalman_gyro_z[i].q = 0.001;
-    kalman_gyro_z[i].r = 0.03;
+    kalman_gyro_z[i].q = 0.0007;  // Moderate restriction for lateral bending
+    kalman_gyro_z[i].r = 0.035;   // Slightly increased measurement noise
+  }
+}
+
+// Constraint function applying anatomical limits to spine movement
+void FilterManager::applySpinalConstraints(int sensorId) {
+  if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) {
+    return;
+  }
+  
+  // Axial Rotation constraints (roll - rotation around X)
+  float axial_rotation = comp_angle_x[sensorId];
+  if (sensorId == 0) {
+    // Thoracic limits - limited rotational freedom
+    if (axial_rotation > 46.8f) axial_rotation = 46.8f;
+    if (axial_rotation < -46.8f) axial_rotation = -46.8f;
+  }
+  if (sensorId == 1) {
+    // Lumbar limits - even less rotational freedom
+    if (axial_rotation > 15.3f) axial_rotation = 15.3f;
+    if (axial_rotation < -15.3f) axial_rotation = -15.3f;
+  }
+
+  comp_angle_x[sensorId] = axial_rotation;
+  
+  // Flexion/Extension constraints (pitch - rotation around Y)
+  float flexion_extension = comp_angle_y[sensorId];
+  if (sensorId == 0) {
+    // Thoracic limits - quite restricted due to the presence of the rib cage & orientation of thoracic vertebrae facet joints
+    if (flexion_extension > 26.0f) flexion_extension = 26.0f;   // Flexion limit
+    if (flexion_extension < -22.0f) flexion_extension = -22.0f; // Extension limit
+  }
+  if (sensorId == 1) {
+    // Lumbar limits - drives the flexion/extension
+    if (flexion_extension > 65.0f) axial_rotation = 65.0f;
+    if (flexion_extension < -31.0f) axial_rotation = -31.0f;
+  }
+
+  comp_angle_y[sensorId] = flexion_extension;
+  
+  // Lateral Bending constraints (yaw - rotation around Z)
+  float lateral_bending = comp_angle_z[sensorId];
+  if (lateral_bending > 30.0f) lateral_bending = 30.0f;
+  if (lateral_bending < -30.0f) lateral_bending = -30.0f;
+  comp_angle_z[sensorId] = lateral_bending;
+  
+  // Coupling between lateral bending and axial rotation 
+  // -> Lateral bending (Z) couples with or naturally induces axial rotation (X) in real-world biomechanics
+  if (abs(lateral_bending) > 10.0f) {
+    // When lateral bending exceeds 10 degrees, couple with axial rotation
+    float coupled_rotation = axial_rotation;
+    float coupling_factor = (sensorId == 0) ? 0.3f : 0.1f;
+
+// Thoracic Spine (T1-T12)
+// Studies suggest that for every 10° of lateral bending in the thoracic spine, axial rotation can range between 3° to 7°.
+// Source: White & Panjabi (1990), Clinical Biomechanics of the Spine
+// A general estimate is a coupling factor of ~20%-30%, meaning if lateral bending is 20°, axial rotation could be between 4° to 6°.
+// Lumbar Spine (L1-L5)
+// The lumbar spine has much less coupling because its facet joints are oriented more vertically.
+// Studies indicate that for every 10° of lateral bending, axial rotation is around 1° to 3°.
+// Source: Bogduk & Twomey (1991), Clinical Anatomy of the Lumbar Spine and Sacrum
+// This suggests a coupling factor of ~10%-20%, meaning if lateral bending is 20°, axial rotation could be 2° to 4°.
+    
+    // Add coupling effect (lateral bending influences axial rotation)
+    coupled_rotation += (lateral_bending - (lateral_bending > 0 ? 10.0f : -10.0f)) * coupling_factor;
+    
+    // Apply limits again
+    if (sensorId == 0) {
+      if (coupled_rotation > 60.0f) coupled_rotation = 60.0f;
+      if (coupled_rotation < -60.0f) coupled_rotation = -60.0f;
+    } else {
+      if (coupled_rotation > 35.0f) coupled_rotation = 35.0f;
+      if (coupled_rotation < -35.0f) coupled_rotation = -35.0f;
+    }
+    
+    comp_angle_x[sensorId] = coupled_rotation;
   }
 }
 
@@ -210,6 +289,8 @@ void FilterManager::processAllSensors() {
       filteredData[sensorId].gyro[0], filteredData[sensorId].gyro[1], filteredData[sensorId].gyro[2],
       filteredData[sensorId].mag[0], filteredData[sensorId].mag[1], filteredData[sensorId].mag[2]
     );
+
+    applySpinalConstraints(sensorId);
   }
 }
 

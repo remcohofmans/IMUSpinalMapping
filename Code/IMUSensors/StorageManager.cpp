@@ -14,6 +14,15 @@ StorageManager::StorageManager() : calibrationManager(nullptr) {
 
 void StorageManager::initialize(CalibrationManager* calMgr) {
   calibrationManager = calMgr;
+
+  // Calculate required size: magic number + calibration data for all units
+  size_t requiredSize = sizeof(uint32_t) + (NO_OF_UNITS * sizeof(CalibrationData));
+  
+  // Initialize EEPROM with required size
+  EEPROM.begin(requiredSize);
+  
+  Serial.print("EEPROM initialized with size: ");
+  Serial.println(requiredSize);
 }
 
 void StorageManager::saveCalibrationToEEPROM() {
@@ -30,9 +39,9 @@ void StorageManager::saveCalibrationToEEPROM() {
   
   // Write calibration data for all units
   for (int i = 0; i < NO_OF_UNITS; i++) {
-    CalibrationData* data = calibrationManager->getCalibrationData(i);
+    CalibrationData &data = calibrationManager->getCalibrationData(i);
     if (data) {
-      EEPROM.put(address, *data);
+      EEPROM.put(address, data);
       address += sizeof(CalibrationData);
     }
   }

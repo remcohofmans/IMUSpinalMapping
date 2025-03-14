@@ -11,7 +11,7 @@ OutputManager::OutputManager()
     calibrationManager(nullptr),
     filterManager(nullptr),
     lastPrintTime(0),
-    outputRate(5000) // Default to 5000ms/5s output rate
+    outputRate(50) // Default to 50ms/0.05s output rate
 {
 }
 

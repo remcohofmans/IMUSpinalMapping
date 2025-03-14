@@ -29,7 +29,7 @@ unsigned long lastWebUpdateTime = 0;
 const unsigned long WEB_UPDATE_INTERVAL = 50; // 50ms -> 20 Hz update rate
 
 void setup(void) {
-  Serial.begin(115200);
+  Serial.begin(115200); // Configure baud rate to 115200
   while (!Serial)
     delay(10);
 
@@ -52,8 +52,8 @@ void setup(void) {
   storageManager.initialize(&calibrationManager);
   outputManager.initialize(&sensorManager, &calibrationManager, &filterManager);
 
-  // Initialize LittleFS - we'll load the HTML file that was uploaded separately
-  if(!LittleFS.begin(true)) {
+  // Initialize LittleFS - load the HTML file that was uploaded separately
+  if(!LittleFS.begin(true)) { // If mounting fails, it will automatically format the flash storage and then mount it
     Serial.println("LittleFS Mount Failed");
     return;
   }
@@ -82,11 +82,11 @@ void setup(void) {
   Serial.println("\nDo you want to perform sensor calibration?");
   Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
   
-  while (!Serial.available()) {
+  while (!Serial.available()) { // Check if data is available in the serial buffer
     // Wait for user input
   }
   
-  char response = Serial.read();
+  char response = Serial.read();  // Read the user input (FIFO, 1 byte)
   while (Serial.available()) Serial.read();  // Clear input buffer
   
   if (response == 'Y' || response == 'y') {
@@ -100,7 +100,7 @@ void setup(void) {
   filterManager.resetTimers();
     
   // Initialize and start web server
-  if (webServer.initialize(ssid, password, username)) {
+  if (webServer.initialize("iPhone van Remco", "555333222", "esp32-imu")) {
     webServer.start();
   } else {
     Serial.println("WARNING: Web server initialization failed");

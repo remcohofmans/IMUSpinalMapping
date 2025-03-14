@@ -28,26 +28,39 @@ WebServer::WebServer(SensorManager* sensorMgr, FilterManager* filterMgr)
   }
 }
 
-bool WebServer::initialize(const char* ssid, const char* password, const char* username) {
-  Serial.println("Setting up ESP32 as Access Point");
+bool WebServer::initialize(const char* ssid, const char* password, const char* hostname) {
+  // Store credentials
+  this->ssid = ssid;
+  this->password = password;
   
-  WiFi.mode(WIFI_AP);
-  bool result = WiFi.softAP("ESP32-IMU-Sensor", "password123");
+  // Connect to WiFi in station mode
+  Serial.println("Connecting to WiFi network: " + String(ssid));
   
-  if (!result) {
-    Serial.println("AP Failed to start");
-    return false;   
+  WiFi.mode(WIFI_STA);
+  
+  // Set hostname if provided
+  if (hostname != nullptr && strlen(hostname) > 0) {
+    WiFi.setHostname(hostname);
   }
   
-  Serial.println("AP Started");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.softAPIP());  // This will usually be 192.168.4.1
+  WiFi.begin(ssid, password);
   
-  // Set up WebSocket event handler
-  webSocket.onEvent([this](AsyncWebSocket* server, AsyncWebSocketClient* client,
-                       AwsEventType type, void* arg, uint8_t* data, size_t len) {
-    this->onWebSocketEvent(server, client, type, arg, data, len);
-  });
+  // Wait for connection with timeout
+  int timeout = 0;
+  while (WiFi.status() != WL_CONNECTED && timeout < 20) { // 10 second timeout
+    delay(500);
+    Serial.print(".");
+    timeout++;
+  }
+  
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nFailed to connect to WiFi network");
+    return false;
+  }
+  
+  Serial.println("\nConnected to WiFi network");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
   
   // Add WebSocket to server
   server.addHandler(&webSocket);
@@ -56,6 +69,7 @@ bool WebServer::initialize(const char* ssid, const char* password, const char* u
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
+  
   // Define routes for static files
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(LittleFS, "/index.html", "text/html");

@@ -18,7 +18,7 @@ public:
   WebServer(SensorManager* sensorMgr, FilterManager* filterMgr);
   
   // Initialize the web server and WebSocket
-bool initialize(const char* ssid, const char* password, const char* username = nullptr);
+  bool initialize(const char* ssid, const char* password, const char* hostname = nullptr);
   
   // Update orientation data to be sent to clients
   void updateOrientationData();

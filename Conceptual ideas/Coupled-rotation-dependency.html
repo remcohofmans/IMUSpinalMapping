@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coupled Rotation Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .formula {
+            font-family: monospace;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .axis path, .axis line {
+            stroke: #ccc;
+        }
+        .axis text {
+            font-size: 12px;
+            fill: #666;
+        }
+        .grid line {
+            stroke: #eee;
+            stroke-opacity: 0.7;
+        }
+        .axis-label {
+            font-size: 12px;
+            text-anchor: middle;
+            fill: #666;
+        }
+        .tooltip {
+            position: absolute;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            pointer-events: none;
+            font-size: 12px;
+            opacity: 0;
+        }
+        .explanation {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .explanation ul {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        .explanation li {
+            margin-bottom: 8px;
+        }
+        .line {
+            fill: none;
+            stroke: #6a51a3;
+            stroke-width: 2px;
+        }
+        .reference-line {
+            stroke: #888;
+            stroke-dasharray: 3,3;
+        }
+        .threshold-line {
+            stroke: #ff7800;
+            stroke-dasharray: 3,3;
+        }
+        .value-display {
+            font-weight: bold;
+            min-width: 40px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coupled Rotation Formula Visualization</h1>
+        
+        <div class="formula">
+            coupled_rotation += (lateral_bending - (lateral_bending > 0 ? 10.0f : -10.0f)) * coupling_factor;
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="coupling-factor">
+                    Coupling Factor: <span id="coupling-factor-value" class="value-display">0.50</span>
+                </label>
+                <div class="slider-container">
+                    <input type="range" id="coupling-factor" min="0" max="1" step="0.05" value="0.5">
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container" id="chart"></div>
+        
+        <div class="explanation">
+            <h3>Explanation</h3>
+            <p>This visualization shows how the coupled rotation changes based on lateral bending angle:</p>
+            <ul>
+                <li>When lateral bending is <strong>greater than 10°</strong> (positive threshold), the formula applies coupling to the excess bend.</li>
+                <li>When lateral bending is <strong>less than -10°</strong> (negative threshold), the formula applies coupling to the excess bend.</li>
+                <li>Between -10° and 10°, there is no coupled rotation produced.</li>
+                <li>The coupling factor determines how strongly lateral bending influences rotation.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Chart configuration
+        const margin = {top: 40, right: 40, bottom: 60, left: 60};
+        const chartContainer = document.getElementById('chart');
+        const width = chartContainer.clientWidth - margin.left - margin.right;
+        const height = chartContainer.clientHeight - margin.top - margin.bottom;
+        
+        // Create SVG
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+        // Scales
+        const x = d3.scaleLinear()
+            .domain([-30, 30])
+            .range([0, width]);
+            
+        const y = d3.scaleLinear()
+            .domain([-20, 20])
+            .range([height, 0]);
+            
+        // Add X grid lines
+        svg.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x)
+                .tickSize(-height)
+                .tickFormat("")
+            );
+            
+        // Add Y grid lines
+        svg.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y)
+                .tickSize(-width)
+                .tickFormat("")
+            );
+            
+        // Add X axis
+        svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height/2})`)
+            .call(d3.axisBottom(x));
+            
+        // Add Y axis
+        svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(${width/2},0)`)
+            .call(d3.axisLeft(y));
+            
+        // Add X axis label
+        svg.append("text")
+            .attr("class", "axis-label")
+            .attr("x", width / 2)
+            .attr("y", height + 40)
+            .text("Lateral Bending (degrees)");
+            
+        // Add Y axis label
+        svg.append("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height / 2)
+            .attr("y", -40)
+            .text("Coupled Rotation");
+            
+        // Threshold lines
+        svg.append("line")
+            .attr("class", "threshold-line")
+            .attr("x1", x(10))
+            .attr("y1", 0)
+            .attr("x2", x(10))
+            .attr("y2", height);
+            
+        svg.append("line")
+            .attr("class", "threshold-line")
+            .attr("x1", x(-10))
+            .attr("y1", 0)
+            .attr("x2", x(-10))
+            .attr("y2", height);
+            
+        // Threshold text
+        svg.append("text")
+            .attr("class", "axis-label")
+            .attr("x", x(10) + 5)
+            .attr("y", 15)
+            .text("Threshold +10°");
+            
+        svg.append("text")
+            .attr("class", "axis-label")
+            .attr("x", x(-10) - 5)
+            .attr("y", 15)
+            .attr("text-anchor", "end")
+            .text("Threshold -10°");
+            
+        // Line generator
+        const line = d3.line()
+            .x(d => x(d.lateralBending))
+            .y(d => y(d.coupledRotation))
+            .curve(d3.curveMonotoneX);
+            
+        // Line path that will be updated
+        const path = svg.append("path")
+            .attr("class", "line");
+            
+        // Tooltip
+        const tooltip = d3.select("#tooltip");
+        
+        // Data points for mouseover
+        const pointsGroup = svg.append("g");
+        
+        // Function to update chart with new coupling factor
+        function updateChart(couplingFactor) {
+            // Generate data points
+            const data = [];
+            for (let lateralBending = -30; lateralBending <= 30; lateralBending += 1) {
+                const threshold = lateralBending > 0 ? 10.0 : -10.0;
+                const coupledRotation = (lateralBending - threshold) * couplingFactor;
+                
+                data.push({
+                    lateralBending,
+                    coupledRotation: lateralBending > threshold ? coupledRotation : 0,
+                    threshold
+                });
+            }
+            
+            // Update the line
+            path.datum(data)
+                .attr("d", line);
+                
+            // Update points for mouseover
+            const points = pointsGroup.selectAll("circle")
+                .data(data.filter(d => d.lateralBending % 5 === 0));
+                
+            points.enter()
+                .append("circle")
+                .attr("r", 3)
+                .attr("fill", "#6a51a3")
+                .merge(points)
+                .attr("cx", d => x(d.lateralBending))
+                .attr("cy", d => y(d.coupledRotation))
+                .on("mouseover", function(event, d) {
+                    d3.select(this)
+                        .attr("r", 6);
+                        
+                    tooltip
+                        .style("opacity", 1)
+                        .html(`Lateral Bending: ${d.lateralBending}°<br>Coupled Rotation: ${d.coupledRotation.toFixed(2)}`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 25) + "px");
+                })
+                .on("mouseout", function() {
+                    d3.select(this)
+                        .attr("r", 3);
+                        
+                    tooltip.style("opacity", 0);
+                });
+                
+            points.exit().remove();
+            
+            // Update display value
+            document.getElementById("coupling-factor-value").textContent = couplingFactor.toFixed(2);
+        }
+        
+        // Initialize chart
+        let couplingFactor = 0.5;
+        updateChart(couplingFactor);
+        
+        // Event listeners
+        document.getElementById("coupling-factor").addEventListener("input", function() {
+            couplingFactor = parseFloat(this.value);
+            updateChart(couplingFactor);
+        });
+        
+        // Handle window resize
+        window.addEventListener("resize", function() {
+            const newWidth = chartContainer.clientWidth - margin.left - margin.right;
+            const newHeight = chartContainer.clientHeight - margin.top - margin.bottom;
+            
+            // Update SVG size
+            d3.select("#chart svg")
+                .attr("width", newWidth + margin.left + margin.right)
+                .attr("height", newHeight + margin.top + margin.bottom);
+                
+            // Update scales
+            x.range([0, newWidth]);
+            y.range([newHeight, 0]);
+            
+            // Redraw chart
+            updateChart(couplingFactor);
+        });
+    </script>
+</body>
+</html>

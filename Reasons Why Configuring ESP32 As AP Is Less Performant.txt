@@ -1,0 +1,26 @@
+There are several reasons why your ESP32 might perform more slowly when operating in Access Point (AP) mode compared to Station (STA) mode when connected to your home WiFi:
+
+1. **Resource allocation**: In AP mode, the ESP32 is responsible for managing the entire WiFi network, handling DHCP, maintaining connections, and routing all traffic. This takes significant processing power and memory away from your main application.
+
+2. **Lower bandwidth**: The ESP32's AP implementation typically has lower bandwidth capabilities compared to when it connects to a proper router in STA mode. Your home router likely has better hardware specifically designed for network management.
+
+3. **Limited power**: When operating as an AP, the ESP32 uses more power for radio transmission, potentially reducing available power for processing.
+
+4. **Competing tasks**: Running the AP while simultaneously handling sensor data, filtering, calibration, and web serving creates competition for the microcontroller's limited resources.
+
+5. **Default AP configuration**: The ESP32's default AP configuration is optimized for reliability rather than speed. It might be using conservative settings for channel width, transmission power, and other WiFi parameters.
+
+6. **Software implementation**: The WiFi library's AP implementation might not be as optimized as the station mode implementation.
+
+7. **Network protocol overhead**: In AP mode, all communication must pass through additional network stack layers that the ESP32 has to process.
+
+When connected to your home WiFi in STA mode, your router handles most of the network management tasks, freeing up the ESP32 to focus on its primary job of processing sensor data and serving it to clients. This division of labor allows for better performance and faster update rates.
+
+If you need to use AP mode for some reason (like field deployments), you could try to improve performance by:
+
+1. Simplifying your sensor processing pipeline
+2. Reducing the complexity of the data you're transmitting
+3. Optimizing your WebSocket message format to be more compact
+4. Using a dual-core approach on the ESP32 to dedicate one core to network handling
+
+But in general, connecting to an existing WiFi network will almost always give you better performance for applications like sensor monitoring and visualization.

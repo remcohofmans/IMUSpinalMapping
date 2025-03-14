@@ -89,6 +89,9 @@ private:
   
   // Initialize filter states
   void initializeFilters();
+
+  void applySpinalConstraints(int sensorId);
+
 };
 
 #endif // FILTER_MANAGER_H

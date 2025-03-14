@@ -65,7 +65,7 @@ void CalibrationManager::calibrateGyros() {
     calibrationData[i].gyro_offset[1] = gyro_y_sum[i] / samples;
     calibrationData[i].gyro_offset[2] = gyro_z_sum[i] / samples;
     
-    Serial.println("\nGyroscope calibration complete!");
+    Serial.println("\nAll units' gyroscopes calibration complete!");
     Serial.println("Gyroscope offsets (rad/s) for Unit " + String(i + 1) + ":");
     Serial.print("X: "); Serial.print(calibrationData[i].gyro_offset[0], 6);
     Serial.print(" Y: "); Serial.print(calibrationData[i].gyro_offset[1], 6);
@@ -75,22 +75,22 @@ void CalibrationManager::calibrateGyros() {
 }
 
 void CalibrationManager::calibrateAccelerometers() {
-  Serial.println("\n=== Accelerometer Calibration for Multiple Units ===");
+  Serial.println("\n=== Accelerometer Calibration ===");
   Serial.println("This requires positioning all sensor units in 6 different orientations");
   Serial.println("You'll be prompted to place all units on each face at the same time");
   
   // Create arrays to store readings for all 6 positions for each unit
   float accel_readings[NO_OF_UNITS][6][3];  // [unit][position][axis]
-  const int samples_per_position = 100;
+  const int samples_per_position = 200;
   
   for (int position = 0; position < 6; position++) {
     String directions[] = {
       "Z up (flat)",
       "Z down (upside down)",
-      "X up (on long edge)",
-      "X down (on opposite long edge)",
-      "Y up (on short edge)",
-      "Y down (on opposite short edge)"
+      "X up (on short edge)",
+      "X down (on opposite short edge)",
+      "Y up (on long edge)",
+      "Y down (on opposite long edge)"
     };
     
     Serial.print("\nPosition ALL sensors with ");
@@ -140,7 +140,7 @@ void CalibrationManager::calibrateAccelerometers() {
     Serial.println("\nRecorded position " + String(position + 1) + "/6 for all units");
   }
   
-  // Process calibration data for each unit
+  // Process calibration data for each unit -> TODO: Implement fail-safe way to account for new active sensor (locks?)
   for (int unit = 0; unit < NO_OF_UNITS; unit++) {
     if (!sensorManager->isSensorActive(unit)) continue;
     
@@ -162,15 +162,15 @@ void CalibrationManager::calibrateAccelerometers() {
       if (accel_readings[unit][i][2] > max_z) max_z = accel_readings[unit][i][2];
     }
     
-    // Calculate offsets (bias) - the center of min and max
+    // Calculate offsets (bias) for every unit - the center of min and max
     calibrationData[unit].accel_offset[0] = (min_x + max_x) / 2.0;
     calibrationData[unit].accel_offset[1] = (min_y + max_y) / 2.0;
     calibrationData[unit].accel_offset[2] = (min_z + max_z) / 2.0;
     
-    // Calculate scale factors - normalized to 9.8 m/s² (gravity)
-    calibrationData[unit].accel_scale[0] = 19.6 / (max_x - min_x);
-    calibrationData[unit].accel_scale[1] = 19.6 / (max_y - min_y);
-    calibrationData[unit].accel_scale[2] = 19.6 / (max_z - min_z);
+    // Calculate scale factors - normalized to 9.81 m/s² (gravity)
+    calibrationData[unit].accel_scale[0] = 19.62 / (max_x - min_x);
+    calibrationData[unit].accel_scale[1] = 19.62 / (max_y - min_y);
+    calibrationData[unit].accel_scale[2] = 19.62 / (max_z - min_z);
     
     Serial.println("Accelerometer calibration complete for Unit " + String(unit + 1));
     Serial.println("Accel offsets (m/s²):");
@@ -186,11 +186,11 @@ void CalibrationManager::calibrateAccelerometers() {
     Serial.println();
   }
   
-  Serial.println("\nAll accelerometers calibration complete!");
+  Serial.println("\nAll units' accelerometers calibration complete!");
 }
 
 void CalibrationManager::calibrateMagnetometers() {
-  Serial.println("\n=== Magnetometer Calibration for Multiple Units ===");
+  Serial.println("\n=== Magnetometer Calibration ===");
   Serial.println("We'll calibrate each sensor unit one by one.");
   Serial.println("For each unit, rotate it slowly in all directions to");
   Serial.println("sample the complete 3D magnetic field.");
@@ -291,11 +291,11 @@ void CalibrationManager::calibrateMagnetometers() {
     Serial.println();
   }
   
-  Serial.println("\nAll units magnetometer calibration complete!");
+  Serial.println("\nAll units' magnetometer calibration complete!");
 }
 
 void CalibrationManager::calibrateTemperatures() {
-  Serial.println("\n=== Temperature Compensation Calibration for Multiple Units ===");
+  Serial.println("\n=== Temperature Compensation Calibration ===");
   Serial.println("This calibration collects reference temperature data for each sensor unit.");
   Serial.println("We'll collect data at room temperature now.");
   
@@ -325,7 +325,7 @@ void CalibrationManager::calibrateTemperatures() {
   Serial.println("collect data at different temperatures and calculate coefficients.");
   Serial.println("This is just a simplified version that records the reference values.");
   
-  Serial.println("\nAll units temperature calibration complete.");
+  Serial.println("\nAll units' temperature calibration complete.");
 }
 
 float CalibrationManager::compensateForTemperature(float value, float temp_coef, float temp, float temp_ref) {
