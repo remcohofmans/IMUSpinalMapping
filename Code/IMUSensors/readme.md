@@ -9,6 +9,13 @@
 
 This system is designed to manage, calibrate, and process data from multiple IMUs (Inertial Measurement Unit), specifically the ICM-20948 which combines accelerometer, gyroscope, and magnetometer in a single package. The architecture enables multiple sensor units to be connected, calibrated, and monitored, while generated data is accessible through both serial output and a (preliminary) web interface (to be extended).
 
+# axis definition
+
+Viewing from the back of a person:
+         - x is positive down
+         - y is positive to the left
+         - z is positive going out of the back
+
 ### Key Features
 
 - Support for <em> IMU sensor units</em> (currently configured for 2 units)
