@@ -16,6 +16,9 @@ Viewing from the back of a person:
 - y is positive to the left
 - z is positive going out of the back
 
+![axis definition](https://github.com/user-attachments/assets/61c982bd-b6a4-4698-bf09-3cdd19daa8f5)
+
+
 ### Key Features
 
 - Support for <em> IMU sensor units</em> (currently configured for 2 units)
