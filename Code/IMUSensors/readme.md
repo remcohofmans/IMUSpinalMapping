@@ -1,8 +1,29 @@
+![Lateral extension](https://github.com/user-attachments/assets/afadcc30-d6f2-4d2e-b9c2-1e757073446c)
+
+
+[ESP32 + 2x ICM-20948 breakout boards](https://github.com/user-attachments/assets/38adc208-5c5b-4c4c-b61a-d0a6b7f35e00)
+
 # IMU Sensor Management System Documentation
 
 ## System Overview
 
 This system is designed to manage, calibrate, and process data from multiple IMUs (Inertial Measurement Unit), specifically the ICM-20948 which combines accelerometer, gyroscope, and magnetometer in a single package. The architecture enables multiple sensor units to be connected, calibrated, and monitored, while generated data is accessible through both serial output and a (preliminary) web interface (to be extended).
+
+# Axis Definition  
+
+**Viewing from the back of a person:**  
+- **X-axis (Green):** Positive direction → Down  
+- **Y-axis (Red):** Positive direction → Left  
+- **Z-axis (Blue):** Positive direction → Out of the back  
+
+### Rotational Movements  
+- **Roll (X-axis rotation, Green):** Axial Rotation  
+- **Pitch (Y-axis rotation, Red):** Flexion/Extension  
+- **Yaw (Z-axis rotation, Blue):** Lateral Bending  
+
+
+![Axis definition](https://github.com/user-attachments/assets/61c982bd-b6a4-4698-bf09-3cdd19daa8f5)
+
 
 ### Key Features
 
