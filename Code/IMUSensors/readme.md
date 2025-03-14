@@ -267,6 +267,6 @@ The current implementation includes a basic temperature compensation framework. 
    - Check for magnetic interference
 
 4. **Web interface not working**
-   - Verify connection to the ESP32 access point
+   - verify connection to local network
    - Check that the web server started successfully (to be sure, press RST button on ESP32)
    - Ensure WebSocket connection is established (check browser console for errors)
