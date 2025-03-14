@@ -9,14 +9,20 @@
 
 This system is designed to manage, calibrate, and process data from multiple IMUs (Inertial Measurement Unit), specifically the ICM-20948 which combines accelerometer, gyroscope, and magnetometer in a single package. The architecture enables multiple sensor units to be connected, calibrated, and monitored, while generated data is accessible through both serial output and a (preliminary) web interface (to be extended).
 
-# axis definition
+# Axis Definition  
 
-Viewing from the back of a person:
-- x is positive down
-- y is positive to the left
-- z is positive going out of the back
+**Viewing from the back of a person:**  
+- **X-axis (Green):** Positive direction → Down  
+- **Y-axis (Red):** Positive direction → Left  
+- **Z-axis (Blue):** Positive direction → Out of the back  
 
-![axis definition](https://github.com/user-attachments/assets/61c982bd-b6a4-4698-bf09-3cdd19daa8f5)
+### Rotational Movements  
+- **Roll (X-axis rotation, Green):** Axial Rotation  
+- **Pitch (Y-axis rotation, Red):** Flexion/Extension  
+- **Yaw (Z-axis rotation, Blue):** Lateral Bending  
+
+
+![Axis definition](https://github.com/user-attachments/assets/61c982bd-b6a4-4698-bf09-3cdd19daa8f5)
 
 
 ### Key Features
