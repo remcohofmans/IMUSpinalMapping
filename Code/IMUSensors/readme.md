@@ -12,9 +12,9 @@ This system is designed to manage, calibrate, and process data from multiple IMU
 # axis definition
 
 Viewing from the back of a person:
-         - x is positive down
-         - y is positive to the left
-         - z is positive going out of the back
+- x is positive down
+- y is positive to the left
+- z is positive going out of the back
 
 ### Key Features
 
