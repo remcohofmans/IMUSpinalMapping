@@ -6,7 +6,7 @@
 #include "SensorManager.h"
 
 SensorManager::SensorManager() : activeCount(0) {
-  // Initialize sensor_active array
+  // Initialize sensorActive array
   for (int i = 0; i < NO_OF_UNITS; i++) {
     sensorActive[i] = false;
   }

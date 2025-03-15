@@ -7,7 +7,6 @@
 #define CALIBRATION_MANAGER_H
 
 #include "SensorManager.h"
-#include "FilterManager.h"
 
 // Forward declaration to avoid circular dependency
 class FilterManager;
@@ -24,11 +23,11 @@ struct CalibrationData {
   
   // Magnetometer (includes hard and soft iron correction)
   float mag_offset[3] = {0, 0, 0};    // X, Y, Z (hard iron)
-  float mag_scale[3] = {1, 1, 1};     // X, Y, Z (soft iron)
-  float mag_transform[3][3] = {       // Soft iron transform matrix
-    {1, 0, 0},
-    {0, 1, 0},
-    {0, 0, 1}
+  float mag_scale[3] = {1, 1, 1};     // X, Y, Z (soft iron scales - for backwards compatibility)
+  float soft_iron_matrix[3][3] = {     // Soft iron transformation matrix
+    {1.0, 0.0, 0.0},
+    {0.0, 1.0, 0.0},
+    {0.0, 0.0, 1.0}
   };
   
   // Temperature compensation
@@ -52,15 +51,12 @@ public:
   void calibrateTemperatures();
   
   // Apply calibration to sensor readings
-  void calibrateAccelData(int sensorId, float raw_x, float raw_y, float raw_z, 
+  void calibrateAccelData(int sensorId, float raw_x, float raw_y, float raw_z,
+                          float temp, float &cal_x, float &cal_y, float &cal_z);
+  void calibrateGyroData(int sensorId, float raw_x, float raw_y, float raw_z,
                          float temp, float &cal_x, float &cal_y, float &cal_z);
-  void calibrateGyroData(int sensorId, float raw_x, float raw_y, float raw_z, 
-                        float temp, float &cal_x, float &cal_y, float &cal_z);
-  void calibrateMagData(int sensorId, float raw_x, float raw_y, float raw_z, 
-                       float &cal_x, float &cal_y, float &cal_z);
-  
-  // Temperature compensation
-  float compensateForTemperature(float value, float temp_coef, float temp, float temp_ref);
+  void calibrateMagData(int sensorId, float raw_x, float raw_y, float raw_z,
+                        float &cal_x, float &cal_y, float &cal_z);
   
   // Utility functions
   void printCalibrationData();
@@ -75,6 +71,12 @@ private:
   SensorManager* sensorManager;
   FilterManager* filterManager;
   CalibrationData calibrationData[NO_OF_UNITS];
+  
+  // Helper function for temperature compensation
+  float compensateForTemperature(float value, float temp_coef, float temp, float temp_ref);
+  
+  // Helper function for eigenvalue decomposition
+  void eigenDecomposition(float cov[3][3], float eigenvalues[3], float eigenvectors[3][3]);
 };
 
 #endif // CALIBRATION_MANAGER_H

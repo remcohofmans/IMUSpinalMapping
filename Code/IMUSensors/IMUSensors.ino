@@ -12,8 +12,8 @@
 #include "WebServer.h"
 
 // WiFi credentials
-const char* ssid = "iPhone van Remco";
-const char* password = "555333222";
+const char* ssid = "telenet-6073619";
+const char* password = "6Gby6hBrenwc";
 const char* username = nullptr;
 
 // Create global manager instances
@@ -26,19 +26,17 @@ WebServer webServer(&sensorManager, &filterManager);
 
 // Timing variables
 unsigned long lastWebUpdateTime = 0;
-const unsigned long WEB_UPDATE_INTERVAL = 50; // 50ms -> 20 Hz update rate
+const unsigned long WEB_UPDATE_INTERVAL = 100; // 10ms -> 100 Hz update rate
 
 void setup(void) {
-  Serial.begin(115200); // Configure baud rate to 115200
+  Serial.begin(115200); // Initialize serial communication with a baud rate of 115200 bps
   while (!Serial)
     delay(10);
 
-  Serial.println("ICM-20948 Advanced Calibration and Filtering Demo with Web Visualization");
-  
   // Initialize Wire library
   Wire.begin();
   
-  // Initialize sensor hardware
+  // Set up communication channels between ESP32 and sensor hardware (I2C)
   if (!sensorManager.initialize()) {
     Serial.println("CRITICAL ERROR: No sensors found!");
     while (1) {
@@ -52,7 +50,7 @@ void setup(void) {
   storageManager.initialize(&calibrationManager);
   outputManager.initialize(&sensorManager, &calibrationManager, &filterManager);
 
-  // Initialize LittleFS - load the HTML file that was uploaded separately
+  // Initialize LittleFS - load the HTML file after this step
   if(!LittleFS.begin(true)) { // If mounting fails, it will automatically format the flash storage and then mount it
     Serial.println("LittleFS Mount Failed");
     return;
@@ -100,7 +98,7 @@ void setup(void) {
   filterManager.resetTimers();
     
   // Initialize and start web server
-  if (webServer.initialize("iPhone van Remco", "555333222", "esp32-imu")) {
+  if (webServer.initialize(ssid, password, "esp32-imu")) {
     webServer.start();
   } else {
     Serial.println("WARNING: Web server initialization failed");

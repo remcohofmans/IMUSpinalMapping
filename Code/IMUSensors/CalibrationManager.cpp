@@ -1,9 +1,8 @@
-/*
- * CalibrationManager.cpp
- * Implementation of the CalibrationManager class
- */
+#ifndef CALIBRATION_MANAGER_CPP
+#define CALIBRATION_MANAGER_CPP
 
 #include "CalibrationManager.h"
+#include "FilterManager.h"
 #include <math.h>
 
 CalibrationManager::CalibrationManager() {
@@ -65,7 +64,7 @@ void CalibrationManager::calibrateGyros() {
     calibrationData[i].gyro_offset[1] = gyro_y_sum[i] / samples;
     calibrationData[i].gyro_offset[2] = gyro_z_sum[i] / samples;
     
-    Serial.println("\nAll units' gyroscopes calibration complete!");
+    Serial.println("\nAll gyroscopes have been calibrated!");
     Serial.println("Gyroscope offsets (rad/s) for Unit " + String(i + 1) + ":");
     Serial.print("X: "); Serial.print(calibrationData[i].gyro_offset[0], 6);
     Serial.print(" Y: "); Serial.print(calibrationData[i].gyro_offset[1], 6);
@@ -85,8 +84,8 @@ void CalibrationManager::calibrateAccelerometers() {
   
   for (int position = 0; position < 6; position++) {
     String directions[] = {
-      "Z up (flat)",
-      "Z down (upside down)",
+      "Z up (upside down)",
+      "Z down (flat)",
       "X up (on short edge)",
       "X down (on opposite short edge)",
       "Y up (on long edge)",
@@ -106,22 +105,22 @@ void CalibrationManager::calibrateAccelerometers() {
     delay(2000);  // Give time to stabilize
     
     // Create arrays to sum readings for each unit
-    float sum_x[NO_OF_UNITS] = {0};
-    float sum_y[NO_OF_UNITS] = {0};
-    float sum_z[NO_OF_UNITS] = {0};
+    float accel_x_sum[NO_OF_UNITS] = {0};
+    float accel_y_sum[NO_OF_UNITS] = {0};
+    float accel_z_sum[NO_OF_UNITS] = {0};
     
     for (int i = 0; i < samples_per_position; i++) {
       sensorManager->readAllSensors();
       
-      for (int unit = 0; unit < NO_OF_UNITS; unit++) {
-        if (!sensorManager->isSensorActive(unit)) continue;
+      for (int j = 0; j < NO_OF_UNITS; j++) {
+        if (!sensorManager->isSensorActive(j)) continue;
         
         float x, y, z;
-        sensorManager->getRawAccel(unit, x, y, z);
+        sensorManager->getRawAccel(j, x, y, z);
         
-        sum_x[unit] += x;
-        sum_y[unit] += y;
-        sum_z[unit] += z;
+        accel_x_sum[j] += x;
+        accel_y_sum[j] += y;
+        accel_z_sum[j] += z;
       }
       
       if (i % 20 == 0) Serial.print(".");
@@ -132,9 +131,9 @@ void CalibrationManager::calibrateAccelerometers() {
     for (int unit = 0; unit < NO_OF_UNITS; unit++) {
       if (!sensorManager->isSensorActive(unit)) continue;
       
-      accel_readings[unit][position][0] = sum_x[unit] / samples_per_position;
-      accel_readings[unit][position][1] = sum_y[unit] / samples_per_position;
-      accel_readings[unit][position][2] = sum_z[unit] / samples_per_position;
+      accel_readings[unit][position][0] = accel_x_sum[unit] / samples_per_position;
+      accel_readings[unit][position][1] = accel_y_sum[unit] / samples_per_position;
+      accel_readings[unit][position][2] = accel_z_sum[unit] / samples_per_position;
     }
     
     Serial.println("\nRecorded position " + String(position + 1) + "/6 for all units");
@@ -144,22 +143,22 @@ void CalibrationManager::calibrateAccelerometers() {
   for (int unit = 0; unit < NO_OF_UNITS; unit++) {
     if (!sensorManager->isSensorActive(unit)) continue;
     
-    Serial.println("\n=== Processing calibration for Unit " + String(unit + 1) + " ===");
+    Serial.println("\n=== Processing calibration data for Unit " + String(unit + 1) + " ===");
     
     // For each axis, find min and max values
     float min_x = 9999, max_x = -9999;
     float min_y = 9999, max_y = -9999;
     float min_z = 9999, max_z = -9999;
     
-    for (int i = 0; i < 6; i++) {
-      if (accel_readings[unit][i][0] < min_x) min_x = accel_readings[unit][i][0];
-      if (accel_readings[unit][i][0] > max_x) max_x = accel_readings[unit][i][0];
+    for (int pos = 0; pos < 6; pos++) {
+      if (accel_readings[unit][pos][0] < min_x) min_x = accel_readings[unit][pos][0];
+      if (accel_readings[unit][pos][0] > max_x) max_x = accel_readings[unit][pos][0];
       
-      if (accel_readings[unit][i][1] < min_y) min_y = accel_readings[unit][i][1];
-      if (accel_readings[unit][i][1] > max_y) max_y = accel_readings[unit][i][1];
+      if (accel_readings[unit][pos][1] < min_y) min_y = accel_readings[unit][pos][1];
+      if (accel_readings[unit][pos][1] > max_y) max_y = accel_readings[unit][pos][1];
       
-      if (accel_readings[unit][i][2] < min_z) min_z = accel_readings[unit][i][2];
-      if (accel_readings[unit][i][2] > max_z) max_z = accel_readings[unit][i][2];
+      if (accel_readings[unit][pos][2] < min_z) min_z = accel_readings[unit][pos][2];
+      if (accel_readings[unit][pos][2] > max_z) max_z = accel_readings[unit][pos][2];
     }
     
     // Calculate offsets (bias) for every unit - the center of min and max
@@ -186,7 +185,83 @@ void CalibrationManager::calibrateAccelerometers() {
     Serial.println();
   }
   
-  Serial.println("\nAll units' accelerometers calibration complete!");
+  Serial.println("\nAll accelerometers have been calibrated!");
+}
+
+void CalibrationManager::eigenDecomposition(float cov[3][3], float eigenvalues[3], float eigenvectors[3][3]) {
+  // Jacobi eigenvalue algorithm for 3x3 matrices
+  const int MAX_ITER = 50;
+  const float EPSILON = 1e-10;
+  
+  // Initialize eigenvectors to identity matrix
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      eigenvectors[i][j] = (i == j) ? 1.0f : 0.0f;
+    }
+  }
+  
+  // Copy covariance matrix for computation
+  float a[3][3];
+  memcpy(a, cov, 9 * sizeof(float));
+  
+  // Jacobi iteration
+  for (int iter = 0; iter < MAX_ITER; iter++) {
+    // Find the largest off-diagonal element
+    float max_val = 0.0f;
+    int p = 0, q = 1;
+    
+    for (int i = 0; i < 3; i++) {
+      for (int j = i + 1; j < 3; j++) {
+        if (fabs(a[i][j]) > max_val) {
+          max_val = fabs(a[i][j]);
+          p = i;
+          q = j;
+        }
+      }
+    }
+    
+    // Check for convergence
+    if (max_val < EPSILON) {
+      break;
+    }
+    
+    // Compute rotation parameters
+    float theta = 0.5f * atan2(2.0f * a[p][q], a[p][p] - a[q][q]);
+    float c = cos(theta);
+    float s = sin(theta);
+    
+    // Perform rotation
+    float a_pp = a[p][p];
+    float a_qq = a[q][q];
+    float a_pq = a[p][q];
+    
+    a[p][p] = a_pp * c * c + a_qq * s * s + 2.0f * a_pq * c * s;
+    a[q][q] = a_pp * s * s + a_qq * c * c - 2.0f * a_pq * c * s;
+    a[p][q] = 0.0f;
+    a[q][p] = 0.0f;
+    
+    for (int i = 0; i < 3; i++) {
+      if (i != p && i != q) {
+        float a_ip = a[i][p];
+        float a_iq = a[i][q];
+        a[i][p] = a[p][i] = a_ip * c + a_iq * s;
+        a[i][q] = a[q][i] = -a_ip * s + a_iq * c;
+      }
+    }
+    
+    // Update eigenvectors
+    for (int i = 0; i < 3; i++) {
+      float v_ip = eigenvectors[i][p];
+      float v_iq = eigenvectors[i][q];
+      eigenvectors[i][p] = v_ip * c + v_iq * s;
+      eigenvectors[i][q] = -v_ip * s + v_iq * c;
+    }
+  }
+  
+  // Extract eigenvalues (diagonal elements)
+  eigenvalues[0] = a[0][0];
+  eigenvalues[1] = a[1][1];
+  eigenvalues[2] = a[2][2];
 }
 
 void CalibrationManager::calibrateMagnetometers() {
@@ -194,7 +269,7 @@ void CalibrationManager::calibrateMagnetometers() {
   Serial.println("We'll calibrate each sensor unit one by one.");
   Serial.println("For each unit, rotate it slowly in all directions to");
   Serial.println("sample the complete 3D magnetic field.");
-  Serial.println("Try to cover all possible orientations.");
+  Serial.println("Try to cover all possible orientations in a figure-8 pattern.");
   
   for (int unit = 0; unit < NO_OF_UNITS; unit++) {
     if (!sensorManager->isSensorActive(unit)) continue;
@@ -212,7 +287,9 @@ void CalibrationManager::calibrateMagnetometers() {
     
     // Collect samples for ellipsoid fitting
     const int max_samples = 500;
-    float mag_x[max_samples], mag_y[max_samples], mag_z[max_samples];
+    float* mag_x = new float[max_samples];
+    float* mag_y = new float[max_samples];
+    float* mag_z = new float[max_samples];
     int sample_count = 0;
     bool done = false;
     
@@ -250,11 +327,11 @@ void CalibrationManager::calibrateMagnetometers() {
     Serial.println("\nCollected " + String(sample_count) + " samples for Unit " + String(unit + 1));
     
     // Find min and max for each axis
-    float min_x = 9999, max_x = -9999;
-    float min_y = 9999, max_y = -9999;
-    float min_z = 9999, max_z = -9999;
+    float min_x = mag_x[0], max_x = mag_x[0];
+    float min_y = mag_y[0], max_y = mag_y[0];
+    float min_z = mag_z[0], max_z = mag_z[0];
     
-    for (int i = 0; i < sample_count; i++) {
+    for (int i = 1; i < sample_count; i++) {
       if (mag_x[i] < min_x) min_x = mag_x[i];
       if (mag_x[i] > max_x) max_x = mag_x[i];
       
@@ -265,17 +342,98 @@ void CalibrationManager::calibrateMagnetometers() {
       if (mag_z[i] > max_z) max_z = mag_z[i];
     }
     
-    // Calculate hard iron offsets
-    calibrationData[unit].mag_offset[0] = (min_x + max_x) / 2.0;
-    calibrationData[unit].mag_offset[1] = (min_y + max_y) / 2.0;
-    calibrationData[unit].mag_offset[2] = (min_z + max_z) / 2.0;
+    // Calculate hard iron offsets (center of ellipsoid)
+    calibrationData[unit].mag_offset[0] = (min_x + max_x) / 2.0f;
+    calibrationData[unit].mag_offset[1] = (min_y + max_y) / 2.0f;
+    calibrationData[unit].mag_offset[2] = (min_z + max_z) / 2.0f;
     
-    // Calculate soft iron scale factors
-    float avg_delta = ((max_x - min_x) + (max_y - min_y) + (max_z - min_z)) / 3.0;
+    // Create centered data for covariance calculation
+    float* centered_x = new float[sample_count];
+    float* centered_y = new float[sample_count];
+    float* centered_z = new float[sample_count];
     
-    calibrationData[unit].mag_scale[0] = avg_delta / (max_x - min_x);
-    calibrationData[unit].mag_scale[1] = avg_delta / (max_y - min_y);
-    calibrationData[unit].mag_scale[2] = avg_delta / (max_z - min_z);
+    for (int i = 0; i < sample_count; i++) {
+      centered_x[i] = mag_x[i] - calibrationData[unit].mag_offset[0];
+      centered_y[i] = mag_y[i] - calibrationData[unit].mag_offset[1];
+      centered_z[i] = mag_z[i] - calibrationData[unit].mag_offset[2];
+    }
+    
+    // Calculate the covariance matrix
+    float cov[3][3] = {{0}};
+    
+    for (int i = 0; i < sample_count; i++) {
+      cov[0][0] += centered_x[i] * centered_x[i];
+      cov[0][1] += centered_x[i] * centered_y[i];
+      cov[0][2] += centered_x[i] * centered_z[i];
+      cov[1][1] += centered_y[i] * centered_y[i];
+      cov[1][2] += centered_y[i] * centered_z[i];
+      cov[2][2] += centered_z[i] * centered_z[i];
+    }
+    
+    // Matrix is symmetric
+    cov[1][0] = cov[0][1];
+    cov[2][0] = cov[0][2];
+    cov[2][1] = cov[1][2];
+    
+    // Normalize by sample count
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        cov[i][j] /= sample_count;
+      }
+    }
+    
+    // Perform eigenvalue decomposition
+    float eigenvalues[3];
+    float eigenvectors[3][3];
+    eigenDecomposition(cov, eigenvalues, eigenvectors);
+    
+    // Ensure positive eigenvalues (numerical stability)
+    const float MIN_EIGENVALUE = 1e-6;
+    for (int i = 0; i < 3; i++) {
+      if (eigenvalues[i] < MIN_EIGENVALUE) eigenvalues[i] = MIN_EIGENVALUE;
+    }
+    
+    // Calculate average radius for normalization
+    float avg_radius = sqrt((eigenvalues[0] + eigenvalues[1] + eigenvalues[2]) / 3.0);
+    
+    // Create scaling matrix D
+    float D[3][3] = {{0}};
+    D[0][0] = avg_radius / sqrt(eigenvalues[0]);
+    D[1][1] = avg_radius / sqrt(eigenvalues[1]);
+    D[2][2] = avg_radius / sqrt(eigenvalues[2]);
+    
+    // Calculate V * D (eigenvectors * scaling)
+    float VD[3][3] = {{0}};
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        for (int k = 0; k < 3; k++) {
+          VD[i][j] += eigenvectors[i][k] * D[k][j];
+        }
+      }
+    }
+    
+    // Calculate V * D * V^T (final soft iron correction matrix)
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        calibrationData[unit].soft_iron_matrix[i][j] = 0;
+        for (int k = 0; k < 3; k++) {
+          calibrationData[unit].soft_iron_matrix[i][j] += VD[i][k] * eigenvectors[j][k]; // V^T[k][j] = V[j][k]
+        }
+      }
+    }
+    
+    // Store the diagonal values in the mag_scale array for compatibility with older code
+    calibrationData[unit].mag_scale[0] = calibrationData[unit].soft_iron_matrix[0][0];
+    calibrationData[unit].mag_scale[1] = calibrationData[unit].soft_iron_matrix[1][1];
+    calibrationData[unit].mag_scale[2] = calibrationData[unit].soft_iron_matrix[2][2];
+    
+    // Free allocated memory
+    delete[] mag_x;
+    delete[] mag_y;
+    delete[] mag_z;
+    delete[] centered_x;
+    delete[] centered_y;
+    delete[] centered_z;
     
     Serial.println("\nMagnetometer calibration complete for Unit " + String(unit + 1));
     Serial.println("Hard iron offsets (uT):");
@@ -284,14 +442,32 @@ void CalibrationManager::calibrateMagnetometers() {
     Serial.print(" Z: "); Serial.print(calibrationData[unit].mag_offset[2], 4);
     Serial.println();
     
-    Serial.println("Soft iron scale factors:");
+    Serial.println("Eigenvalues:");
+    Serial.print("λ1: "); Serial.print(eigenvalues[0], 4);
+    Serial.print(" λ2: "); Serial.print(eigenvalues[1], 4);
+    Serial.print(" λ3: "); Serial.print(eigenvalues[2], 4);
+    Serial.println();
+    
+    Serial.println("Soft iron correction matrix:");
+    for (int i = 0; i < 3; i++) {
+      Serial.print("[ ");
+      for (int j = 0; j < 3; j++) {
+        Serial.print(calibrationData[unit].soft_iron_matrix[i][j], 4);
+        Serial.print(" ");
+      }
+      Serial.println("]");
+    }
+    
+    Serial.println("Diagonal scale factors (for compatibility):");
     Serial.print("X: "); Serial.print(calibrationData[unit].mag_scale[0], 4);
     Serial.print(" Y: "); Serial.print(calibrationData[unit].mag_scale[1], 4);
     Serial.print(" Z: "); Serial.print(calibrationData[unit].mag_scale[2], 4);
     Serial.println();
   }
-  
-  Serial.println("\nAll units' magnetometer calibration complete!");
+
+  Serial.println("\nAll magnetometers have been calibrated!");
+  Serial.println("Note: Magnetic declination is not accounted for. For accurate heading,");
+  Serial.println("you should apply your local magnetic declination correction.");
 }
 
 void CalibrationManager::calibrateTemperatures() {
@@ -314,8 +490,8 @@ void CalibrationManager::calibrateTemperatures() {
     
     // Using default values for temperature coefficients
     for (int i = 0; i < 3; i++) {
-      calibrationData[unit].temp_coef_accel[i] = 0.0;  // Default: no temperature compensation
-      calibrationData[unit].temp_coef_gyro[i] = 0.0;   // Default: no temperature compensation
+      calibrationData[unit].temp_coef_accel[i] = 0.0;  // Set to 0: no temperature compensation
+      calibrationData[unit].temp_coef_gyro[i] = 0.0;   
     }
     
     Serial.println("Temperature calibration completed for Unit " + String(unit + 1));
@@ -386,10 +562,18 @@ void CalibrationManager::calibrateMagData(int sensorId, float raw_x, float raw_y
   float offset_cal_y = raw_y - calibrationData[sensorId].mag_offset[1];
   float offset_cal_z = raw_z - calibrationData[sensorId].mag_offset[2];
   
-  // Apply soft iron (scale) calibration
-  cal_x = offset_cal_x * calibrationData[sensorId].mag_scale[0];
-  cal_y = offset_cal_y * calibrationData[sensorId].mag_scale[1];
-  cal_z = offset_cal_z * calibrationData[sensorId].mag_scale[2];
+  // Apply soft iron correction matrix
+  cal_x = calibrationData[sensorId].soft_iron_matrix[0][0] * offset_cal_x + 
+          calibrationData[sensorId].soft_iron_matrix[0][1] * offset_cal_y + 
+          calibrationData[sensorId].soft_iron_matrix[0][2] * offset_cal_z;
+          
+  cal_y = calibrationData[sensorId].soft_iron_matrix[1][0] * offset_cal_x + 
+          calibrationData[sensorId].soft_iron_matrix[1][1] * offset_cal_y + 
+          calibrationData[sensorId].soft_iron_matrix[1][2] * offset_cal_z;
+          
+  cal_z = calibrationData[sensorId].soft_iron_matrix[2][0] * offset_cal_x + 
+          calibrationData[sensorId].soft_iron_matrix[2][1] * offset_cal_y + 
+          calibrationData[sensorId].soft_iron_matrix[2][2] * offset_cal_z;
 }
 
 void CalibrationManager::printCalibrationData() {
@@ -469,3 +653,5 @@ size_t CalibrationManager::getCalibrationDataSize() const {
 CalibrationData* CalibrationManager::getAllCalibrationData() {
   return calibrationData;
 }
+
+#endif // CALIBRATION_MANAGER_CPP
