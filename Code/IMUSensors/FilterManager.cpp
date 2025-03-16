@@ -10,8 +10,8 @@
 FilterManager::FilterManager() : 
   lastTime(0),
   adaptiveFilteringEnabled(true),
-  anatomicalConstraintsEnabled(true),
-  useQuaternions(true) {
+  anatomicalConstraintsEnabled(false),
+  useQuaternions(false) {
   
   // Initialize buffers to zero
   for (int i = 0; i < NO_OF_UNITS; i++) {
@@ -296,7 +296,7 @@ void FilterManager::slerp(const Quaternion &q1, const Quaternion &q2, float t, Q
   normalize_quaternion(result);
 }
 
-// ===== Sensor Fusion Implementation =====
+// ===== Sensor Fusion Implementation -> exploit on-board DMP =====
 
 void FilterManager::processAllSensors() {
   if (!sensorManager) {
@@ -310,8 +310,8 @@ void FilterManager::processAllSensors() {
   
   // Prevent large time jumps
   if (dt > 0.2f) dt = 0.2f;
-  if (dt < 0.001f) dt = 0.001f; // Also prevent very small dt
-  
+  if (dt < 0.001f) dt = 0.001f; // Also prevent very small dt 
+              // (due to timing anomalies or when loops execute faster than the timer resolution)
   for (int sensorId = 0; sensorId < NO_OF_UNITS; sensorId++) {
     if (!sensorManager->isSensorActive(sensorId)) continue;
     
@@ -642,65 +642,59 @@ void FilterManager::applySpinalConstraints(int sensorId) {
   // Get current angles
   float axial_rotation, flexion_extension, lateral_bending;
   
-  if (useQuaternions) {
     axial_rotation = euler_angles[sensorId].roll;
     flexion_extension = euler_angles[sensorId].pitch;
     lateral_bending = euler_angles[sensorId].yaw;
-  } else {
-    axial_rotation = euler_angles[sensorId].roll;
-    flexion_extension = euler_angles[sensorId].pitch;
-    lateral_bending = euler_angles[sensorId].yaw;
-  }
   
-  // Apply constraints based on sensor position
-  if (sensorId == 0) {
-    // Thoracic limits
-    // Axial Rotation (around X)
-    if (axial_rotation > 46.8f) axial_rotation = 46.8f;
-    if (axial_rotation < -46.8f) axial_rotation = -46.8f;
+  // // Apply constraints based on sensor position
+  // if (sensorId == 0) {
+  //   // Thoracic limits
+  //   // Axial Rotation (around X)
+  //   if (axial_rotation > 46.8f) axial_rotation = 46.8f;
+  //   if (axial_rotation < -46.8f) axial_rotation = -46.8f;
     
-    // Flexion/Extension (around Y)
-    if (flexion_extension > 26.0f) flexion_extension = 26.0f;   // Flexion limit
-    if (flexion_extension < -22.0f) flexion_extension = -22.0f; // Extension limit
+  //   // Flexion/Extension (around Y)
+  //   if (flexion_extension > 26.0f) flexion_extension = 26.0f;   // Flexion limit
+  //   if (flexion_extension < -22.0f) flexion_extension = -22.0f; // Extension limit
     
-    // Lateral Bending (around Z)
-    if (lateral_bending > 30.0f) lateral_bending = 30.0f;
-    if (lateral_bending < -30.0f) lateral_bending = -30.0f;
-  } 
-  else if (sensorId == 1) {
-    // Lumbar limits
-    // Axial Rotation (around X)
-    if (axial_rotation > 15.3f) axial_rotation = 15.3f;
-    if (axial_rotation < -15.3f) axial_rotation = -15.3f;
+  //   // Lateral Bending (around Z)
+  //   if (lateral_bending > 30.0f) lateral_bending = 30.0f;
+  //   if (lateral_bending < -30.0f) lateral_bending = -30.0f;
+  // } 
+  // else if (sensorId == 1) {
+  //   // Lumbar limits
+  //   // Axial Rotation (around X)
+  //   if (axial_rotation > 15.3f) axial_rotation = 15.3f;
+  //   if (axial_rotation < -15.3f) axial_rotation = -15.3f;
     
-    // Flexion/Extension (around Y)
-    if (flexion_extension > 65.0f) flexion_extension = 65.0f;   // Flexion limit
-    if (flexion_extension < -31.0f) flexion_extension = -31.0f; // Extension limit
+  //   // Flexion/Extension (around Y)
+  //   if (flexion_extension > 65.0f) flexion_extension = 65.0f;   // Flexion limit
+  //   if (flexion_extension < -31.0f) flexion_extension = -31.0f; // Extension limit
     
-    // Lateral Bending (around Z)
-    if (lateral_bending > 30.0f) lateral_bending = 30.0f;
-    if (lateral_bending < -30.0f) lateral_bending = -30.0f;
-  }
+  //   // Lateral Bending (around Z)
+  //   if (lateral_bending > 30.0f) lateral_bending = 30.0f;
+  //   if (lateral_bending < -30.0f) lateral_bending = -30.0f;
+  // }
   
-  // Apply coupling between lateral bending and axial rotation
-  // This mimics the natural coupling in spinal movement
-  if (abs(lateral_bending) > 10.0f) {
-    // When lateral bending exceeds 10 degrees, couple with axial rotation
-    float coupling_factor = (sensorId == 0) ? 0.3f : 0.1f;
-    float coupled_rotation = axial_rotation + 
-      (lateral_bending - (lateral_bending > 0 ? 10.0f : -10.0f)) * coupling_factor;
+  // // Apply coupling between lateral bending and axial rotation
+  // // This mimics the natural coupling in spinal movement
+  // if (abs(lateral_bending) > 10.0f) {
+  //   // When lateral bending exceeds 10 degrees, couple with axial rotation
+  //   float coupling_factor = (sensorId == 0) ? 0.3f : 0.1f;
+  //   float coupled_rotation = axial_rotation + 
+  //     (lateral_bending - (lateral_bending > 0 ? 10.0f : -10.0f)) * coupling_factor;
     
-    // Apply limits again
-    if (sensorId == 0) {
-      if (coupled_rotation > 46.8f) coupled_rotation = 46.8f;
-      if (coupled_rotation < -46.8f) coupled_rotation = -46.8f;
-    } else {
-      if (coupled_rotation > 15.3f) coupled_rotation = 15.3f;
-      if (coupled_rotation < -15.3f) coupled_rotation = -15.3f;
-    }
+  //   // Apply limits again
+  //   if (sensorId == 0) {
+  //     if (coupled_rotation > 46.8f) coupled_rotation = 46.8f;
+  //     if (coupled_rotation < -46.8f) coupled_rotation = -46.8f;
+  //   } else {
+  //     if (coupled_rotation > 15.3f) coupled_rotation = 15.3f;
+  //     if (coupled_rotation < -15.3f) coupled_rotation = -15.3f;
+  //   }
     
-    axial_rotation = coupled_rotation;
-  }
+  //   axial_rotation = coupled_rotation;
+  // }
   
   // Update the angles
   if (useQuaternions) {

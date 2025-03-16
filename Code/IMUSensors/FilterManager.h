@@ -107,7 +107,7 @@ private:
   bool useQuaternions;
   
   // Magnetic declination adjustment (in degrees)
-  static constexpr float MAGNETIC_DECLINATION = 0.0f; // Set this for your location
+  static constexpr float MAGNETIC_DECLINATION = 1.5f; // Constant for Belgium
   
   // Filter coefficient (0.98 = 98% gyro, 2% accel)
   static constexpr float ALPHA = 0.98f;

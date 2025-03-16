@@ -41,12 +41,12 @@ void StorageManager::saveCalibrationToEEPROM() {
   for (int i = 0; i < NO_OF_UNITS; i++) {
     CalibrationData *data = calibrationManager->getCalibrationData(i);
     if (data) {
-      EEPROM.put(address, data);
+      EEPROM.put(address, data);  // Attention: only stores data in a RAM buffer
       address += sizeof(CalibrationData);
     }
   }
   
-  EEPROM.commit();
+  EEPROM.commit();  // Required to actually transfer buffered data from RAM to the flash memory
   Serial.println("Calibration data saved to EEPROM");
 }
 

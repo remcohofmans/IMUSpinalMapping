@@ -202,7 +202,11 @@ void CalibrationManager::eigenDecomposition(float cov[3][3], float eigenvalues[3
   
   // Copy covariance matrix for computation
   float a[3][3];
-  memcpy(a, cov, 9 * sizeof(float));
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      a[i][j] = cov[i][j];
+    }
+  }
   
   // Jacobi iteration
   for (int iter = 0; iter < MAX_ITER; iter++) {
@@ -230,24 +234,32 @@ void CalibrationManager::eigenDecomposition(float cov[3][3], float eigenvalues[3
     float c = cos(theta);
     float s = sin(theta);
     
-    // Perform rotation
+    // Apply rotation to entire matrix
+    for (int i = 0; i < 3; i++) {
+      // Save original values before modification
+      float a_ip = a[i][p];
+      float a_iq = a[i][q];
+      
+      // Update row elements
+      if (i != p && i != q) {
+        a[i][p] = a_ip * c + a_iq * s;
+        a[i][q] = -a_ip * s + a_iq * c;
+        
+        // Update corresponding column elements (symmetric matrix)
+        a[p][i] = a[i][p];
+        a[q][i] = a[i][q];
+      }
+    }
+    
+    // Update the diagonal and target off-diagonal elements
     float a_pp = a[p][p];
     float a_qq = a[q][q];
     float a_pq = a[p][q];
     
     a[p][p] = a_pp * c * c + a_qq * s * s + 2.0f * a_pq * c * s;
     a[q][q] = a_pp * s * s + a_qq * c * c - 2.0f * a_pq * c * s;
-    a[p][q] = 0.0f;
-    a[q][p] = 0.0f;
-    
-    for (int i = 0; i < 3; i++) {
-      if (i != p && i != q) {
-        float a_ip = a[i][p];
-        float a_iq = a[i][q];
-        a[i][p] = a[p][i] = a_ip * c + a_iq * s;
-        a[i][q] = a[q][i] = -a_ip * s + a_iq * c;
-      }
-    }
+    a[p][q] = 0.0f;  // Explicitly zero out
+    a[q][p] = 0.0f;  // Explicitly zero out
     
     // Update eigenvectors
     for (int i = 0; i < 3; i++) {
@@ -422,7 +434,7 @@ void CalibrationManager::calibrateMagnetometers() {
       }
     }
     
-    // Store the diagonal values in the mag_scale array for compatibility with older code
+    // Store the diagonal values in the mag_scale array for compatibility with older code following a more simplified approach
     calibrationData[unit].mag_scale[0] = calibrationData[unit].soft_iron_matrix[0][0];
     calibrationData[unit].mag_scale[1] = calibrationData[unit].soft_iron_matrix[1][1];
     calibrationData[unit].mag_scale[2] = calibrationData[unit].soft_iron_matrix[2][2];
@@ -483,9 +495,6 @@ void CalibrationManager::calibrateTemperatures() {
     
     calibrationData[unit].temp_ref = temp;
     
-    float x, y, z;
-    sensorManager->getRawAccel(unit, x, y, z);
-    
     Serial.println("Unit " + String(unit + 1) + " reference temperature: " + String(calibrationData[unit].temp_ref) + " °C");
     
     // Using default values for temperature coefficients
@@ -501,7 +510,7 @@ void CalibrationManager::calibrateTemperatures() {
   Serial.println("collect data at different temperatures and calculate coefficients.");
   Serial.println("This is just a simplified version that records the reference values.");
   
-  Serial.println("\nAll units' temperature calibration complete.");
+  Serial.println("\nAll temperature sensors have been calibrated.");
 }
 
 float CalibrationManager::compensateForTemperature(float value, float temp_coef, float temp, float temp_ref) {

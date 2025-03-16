@@ -26,7 +26,7 @@ WebServer webServer(&sensorManager, &filterManager);
 
 // Timing variables
 unsigned long lastWebUpdateTime = 0;
-const unsigned long WEB_UPDATE_INTERVAL = 100; // 10ms -> 100 Hz update rate
+const unsigned long WEB_UPDATE_INTERVAL = 1; // 1ms -> 1000Hz update rate
 
 void setup(void) {
   Serial.begin(115200); // Initialize serial communication with a baud rate of 115200 bps
@@ -97,7 +97,7 @@ void setup(void) {
   // Initialize timing for filters
   filterManager.resetTimers();
     
-  // Initialize and start web server
+  // Initialize and start web server to serve data over HTTP and WebSockets to the browser client
   if (webServer.initialize(ssid, password, "esp32-imu")) {
     webServer.start();
   } else {
@@ -115,7 +115,7 @@ void loop() {
   // Process sensor data through filters
   filterManager.processAllSensors();
   
-  // Print processed data periodically to Serial
+  // Print processed data periodically to Serial and WebSocket
   outputManager.printSensorData();
   
   // Update web clients with orientation data
