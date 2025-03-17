@@ -27,13 +27,13 @@ This system is designed to manage, calibrate, and process data from multiple IMU
 
 ### Key Features
 
-- Support for <em> IMU sensor units</em> (currently configured for 2 units)
-- Comprehensive calibration procedures for all sensor types
-- Advanced filtering using Kalman and complementary filters
-- Temperature compensation for improved accuracy
-- Real-time orientation tracking (roll, pitch, yaw), currently limited to Euler angles
-- Web interface hosted on ESP32 with data streaming via WebSocket protocol
-- EEPROM storage for calibration data persistence and enhanced user experience
+Support for multiple IMU sensor units (currently configured for 2 units)
+Comprehensive calibration procedures for all sensor types
+Advanced filtering using Kalman and complementary filters
+Temperature compensation for improved accuracy
+Real-time orientation tracking using both Euler angles and quaternions
+Web interface hosted on ESP32 with data streaming via WebSocket protocol
+EEPROM storage for calibration data persistence
 
 ## System Architecture
 
@@ -82,15 +82,15 @@ Each sensor has 9 DOF and provides the following measurements:
 For each sensor unit, the system stores:
 - Accelerometer offsets and scale factors
 - Gyroscope offsets and scale factors
-- Magnetometer hard iron offsets and soft iron scale factors
+- Magnetometer hard iron offsets and soft iron transformation matrix
 - Temperature reference and temperature coefficients
 
 ### Orientation Data
 
-The system calculates and provides orientation data:
-- Roll (rotation around X-axis) in degrees
-- Pitch (rotation around Y-axis) in degrees
-- Yaw (rotation around Z-axis) in degrees
+The system calculates and provides orientation data in two formats:
+
+- Euler angles (roll, pitch, yaw) in degrees
+- Quaternions (w, x, y, z) for more robust 3D orientation representation (deals with Gimbal lock)
 
 ## Calibration Procedures
 
@@ -106,29 +106,37 @@ The system includes detailed calibration procedures for each sensor type:
 ### Accelerometer Calibration
 
 1. Places sensor units in 6 different orientations (all major axes facing up and down)
-2. Prompts the user once again to keep still
-3. Collects 100 samples for each orientation
+3. Collects 200 samples for each orientation
 4. Finds min/max values for each axis
-5. Calculates offsets (center of range) and scale factors
+5. Calculates offsets (center of range) and scale factors normalized to gravity (9.81 m/s²)
 
 ### Magnetometer Calibration
 
 1. Rotates each sensor unit in a figure-8 pattern to cover all orientations
 2. Collects up to 500 samples
-3. Calculates hard iron offsets (center of range) -> shift the center of the magnetometer's measurement sphere -> requires simple additive corrections
-4. Calculates soft iron scale factors 
-   -> create an ellipsoidal rather than (ideal) spherical measurement space -> stretch or compress the measurements along each axis to restore the spherical shape of the measurement space
+3. Calculates hard iron offsets (center of ellipsoid)
+4. Calculates soft iron transformation matrix using eigendecomposition
+5. Corrects for magnetic field distortions
 
 ### Temperature Calibration
 
 1. Records reference temperature for each sensor
 2. Sets up temperature coefficients for compensation
 
+## Sensor-to-Segment Alignment
+
+1. Performs a calibration sequence with neutral stance, forward flexion, and lateral bend
+2. Calculates alignment matrix to match sensor axes to anatomical axes
+
 ## Filtering Algorithms
 
 ### Moving Average Filter
 
-Implemented for all sensor data with a configurable window size (currently 10 samples), to smoothen out the readings.
+Implemented for all sensor data with a configurable window size (currently 10 samples), to smoothen out the readings. The filter works by:
+
+1. Adding new values to a circular buffer
+2. Calculating the average of all values in the buffer
+3. Advancing the buffer index with wraparound
 
 ### Kalman Filter
 
@@ -139,21 +147,37 @@ Applied to accelerometer and gyroscope data with separate filter states for each
 - Measurement noise (r)
 - Gain (k)
 
-### Complementary Filter
+The algorithm estimates and predicts system states amid uncertainty, guided by knowledge of physical limitations in the incoming data.
 
-Used for orientation estimation, combining:
-- Accelerometer data (for roll and pitch)
-- Magnetometer data (for yaw)
-- Gyroscope data (for rate of change)
+### Adaptive Complementary Filter
 
-The filter uses a configurable alpha value (ALPHA = 0.98) to determine how much weight to give to gyroscope vs. accelerometer/magnetometer data. As the accelero picks up and hence is contaminated by a significant amount of noise, its weight is limited.
+Used for orientation estimation with DYNAMIC weighting:
+- Adjusts filter coefficients based on sensor reliability
+- Reduces accelerometer influence during high acceleration events
+- Reduces magnetometer influence during magnetic disturbances
+- Features magnetic disturbance detection and compensation
+
+### Quaternion Implementation
+
+The system offers quaternion-based orientation tracking for improved stability:
+
+Avoids gimbal lock issues that affect Euler angles
+Provides smoother transitions between orientations
+Implements SLERP (Spherical Linear Interpolation) for quaternion blending
+Transforms between quaternions and Euler angles as needed
+
+### Regional Settings
+
+Magnetic Declination: Set to 1.5° East for Belgium to align magnetic north with true north
 
 ## Web Interface
 
-The system sets up an ESP32 as an access point (AP) with SSID "ESP32-IMU-Sensor" and provides:
-- Web server on port 80
-- WebSocket server for real-time data streaming
-- JSON-formatted orientation data for all active sensors
+The system provides a web interface with:
+
+- Real-time visualization of sensor orientation
+- JSON-formatted data streaming via WebSockets
+- Support for multiple connected clients
+- Responsive design for desktop and mobile devices
 
 ## Usage Instructions
 
@@ -177,10 +201,12 @@ The system sets up an ESP32 as an access point (AP) with SSID "ESP32-IMU-Sensor"
 ### Calibration
 
 Run the `performFullCalibration()` method to calibrate all sensors:
-1. Follow the serial prompts for each calibration step
-2. Keep the sensors still during gyro calibration
-3. Position the sensors as instructed during accelerometer calibration
-4. Rotate the sensors as instructed during magnetometer calibration
+
+- Follow the serial prompts for each calibration step
+- Keep the sensors still during gyro calibration
+- Position the sensors as instructed during accelerometer calibration
+- Rotate the sensors as instructed during magnetometer calibration
+- Perform the sensor-to-segment alignment procedure if using on body segments
 
 ### Saving Calibration
 
@@ -193,11 +219,11 @@ storageManager.saveCalibrationToEEPROM();
 
 1. Serial Output:
    - Connect to the serial monitor at the appropriate baud rate
-   - Data will be output at the configured rate (default 5s)
+   - Data will be output at the configured rate
 
 2. Web Interface:
-   - Connect your device to the "ESP32-IMU-Sensor" WiFi access point using the password 'password123'
-   - Navigate to 192.168.4.1 in a web browser
+   - Connect your device to the ESP32's WiFi network
+   - Navigate to the ESP32's IP address in a web browser (check console log after connecting to network)
    - View real-time orientation data
 
 ## Technical Details
@@ -215,6 +241,7 @@ Configurable parameters:
 - `NO_OF_UNITS`: Number of sensor units (default: 2)
 - `FILTER_SAMPLES`: Window size for moving average filter (default: 10)
 - `ALPHA`: Complementary filter coefficient (default: 0.98)
+- `MAGNETIC_DECLINATION`: Local magnetic declination (default: 1.5° for Belgium)
 
 ## Error Handling
 
@@ -238,13 +265,11 @@ Filter parameters can be adjusted in FilterManager.cpp:
 - Kalman filter process noise (q) and measurement noise (r)
 - Complementary filter coefficient (ALPHA)
 
-Option: Restrict movement in 3D space.
-
 ### Enhanced Temperature Compensation
 
 The current implementation includes a basic temperature compensation framework. This can be extended by:
 1. Collecting data at multiple temperatures
-2. Calculating more accurate temperature coefficients
+2. Calculating more accurate temperature coefficients for each axis
 3. Implementing them in the `temp_coef_accel` and `temp_coef_gyro` arrays
 
 ## Troubleshooting
