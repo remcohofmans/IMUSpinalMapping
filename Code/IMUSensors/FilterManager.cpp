@@ -142,7 +142,7 @@ float FilterManager::applyKalmanFilter(float measurement, KalmanState &state) {
 
 // ===== Quaternion and Matrix Operations =====
 
-void FilterManager::normalize_quaternion(Quaternion &q) {
+void FilterManager::normalizeQuaternion(Quaternion &q) {
   float magnitude = sqrt(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z);
   if (magnitude > 0.0f) {
     q.w /= magnitude;
@@ -158,7 +158,7 @@ void FilterManager::normalize_quaternion(Quaternion &q) {
   }
 }
 
-void FilterManager::euler_to_quaternion(const EulerAngles &euler, Quaternion &q) {
+void FilterManager::eulerToQuaternion(const EulerAngles &euler, Quaternion &q) {
   // Convert Euler angles to quaternion
   // Using Z-Y-X convention (yaw, pitch, roll) which corresponds to
   // Lateral Bending, Flexion/Extension, Axial Rotation in the spine model
@@ -168,8 +168,8 @@ void FilterManager::euler_to_quaternion(const EulerAngles &euler, Quaternion &q)
   float pitch_rad = euler.pitch * M_PI / 180.0f; // Flexion/Extension
   float yaw_rad = euler.yaw * M_PI / 180.0f;    // Lateral Bending
   
-  // Calculate trig identities
-  float cr = cos(roll_rad * 0.5f);
+  // Calculate trigonometric identities
+  float cr = cos(roll_rad * 0.5f); // Use multiplication by 0.5, instead of div by 2 for computational efficiency
   float sr = sin(roll_rad * 0.5f);
   float cp = cos(pitch_rad * 0.5f);
   float sp = sin(pitch_rad * 0.5f);
@@ -177,16 +177,16 @@ void FilterManager::euler_to_quaternion(const EulerAngles &euler, Quaternion &q)
   float sy = sin(yaw_rad * 0.5f);
   
   // Compute quaternion components using Z-Y-X convention
-  q.w = cr * cp * cy + sr * sp * sy;
-  q.x = sr * cp * cy - cr * sp * sy;
+  q.w = cr * cp * cy + sr * sp * sy;  
+  q.x = sr * cp * cy - cr * sp * sy;  
   q.y = cr * sp * cy + sr * cp * sy;
   q.z = cr * cp * sy - sr * sp * cy;
   
   // Ensure normalized quaternion
-  normalize_quaternion(q);
+  normalizeQuaternion(q);
 }
 
-void FilterManager::quaternion_to_euler(const Quaternion &q, EulerAngles &euler) {
+void FilterManager::quaternionToEuler(const Quaternion &q, EulerAngles &euler) {
   // Convert quaternion to Euler angles (roll, pitch, yaw) in degrees
   // This uses the Z-Y-X convention (yaw, pitch, roll) which corresponds to
   // Lateral Bending, Flexion/Extension, Axial Rotation in the spine model
@@ -211,7 +211,7 @@ void FilterManager::quaternion_to_euler(const Quaternion &q, EulerAngles &euler)
   euler.yaw = atan2(siny_cosp, cosy_cosp) * 180.0f / M_PI;
 }
 
-void FilterManager::matrix_to_quaternion(float R[3][3], Quaternion &q) {
+void FilterManager::matrixToQuaternion(float R[3][3], Quaternion &q) {
   // Method to convert rotation matrix to quaternion
   float trace = R[0][0] + R[1][1] + R[2][2];
   
@@ -241,7 +241,7 @@ void FilterManager::matrix_to_quaternion(float R[3][3], Quaternion &q) {
     q.z = 0.25f * S;
   }
   
-  normalize_quaternion(q);
+  normalizeQuaternion(q);
 }
 
 void FilterManager::slerp(const Quaternion &q1, const Quaternion &q2, float t, Quaternion &result) {
@@ -271,7 +271,7 @@ void FilterManager::slerp(const Quaternion &q1, const Quaternion &q2, float t, Q
     result.x = q1.x + t * (q2_adj.x - q1.x);
     result.y = q1.y + t * (q2_adj.y - q1.y);
     result.z = q1.z + t * (q2_adj.z - q1.z);
-    normalize_quaternion(result);
+    normalizeQuaternion(result);
     return;
   }
   
@@ -293,7 +293,7 @@ void FilterManager::slerp(const Quaternion &q1, const Quaternion &q2, float t, Q
   result.z = s0 * q1.z + s1 * q2_adj.z;
   
   // Normalize result
-  normalize_quaternion(result);
+  normalizeQuaternion(result);
 }
 
 // ===== Sensor Fusion Implementation -> exploit on-board DMP =====
@@ -519,7 +519,7 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   euler_angles[sensorId].yaw = new_yaw;     // Lateral bending
   
   // Update quaternion from Euler angles for consistency
-  euler_to_quaternion(euler_angles[sensorId], quaternions[sensorId]);
+  eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
 }
 
 void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
@@ -592,7 +592,7 @@ void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   
   // Convert rotation matrix to quaternion (observation quaternion)
   Quaternion q_obs;
-  matrix_to_quaternion(R, q_obs);
+  matrixToQuaternion(R, q_obs);
   
   // Use Madgwick or Mahony algorithm for quaternion updates
   // This is a simplified implementation of Madgwick's algorithm
@@ -613,7 +613,7 @@ void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   q_gyro.z = quaternions[sensorId].z + q_dot.z;
   
   // Normalize gyro quaternion
-  normalize_quaternion(q_gyro);
+  normalizeQuaternion(q_gyro);
   
   // Determine fusion weight (beta) based on sensor reliability
   float beta = 0.1f; // Default value
@@ -628,10 +628,10 @@ void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   slerp(q_gyro, q_obs, beta, quaternions[sensorId]);
   
   // Normalize final quaternion
-  normalize_quaternion(quaternions[sensorId]);
+  normalizeQuaternion(quaternions[sensorId]);
   
   // Update Euler angles from quaternion for convenience
-  quaternion_to_euler(quaternions[sensorId], euler_angles[sensorId]);
+  quaternionToEuler(quaternions[sensorId], euler_angles[sensorId]);
 }
 
 void FilterManager::applySpinalConstraints(int sensorId) {
@@ -703,7 +703,7 @@ void FilterManager::applySpinalConstraints(int sensorId) {
     euler_angles[sensorId].yaw = lateral_bending;
     
     // Convert back to quaternion
-    euler_to_quaternion(euler_angles[sensorId], quaternions[sensorId]);
+    eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
   } else {
     euler_angles[sensorId].roll = axial_rotation;
     euler_angles[sensorId].pitch = flexion_extension;
@@ -755,117 +755,3 @@ void FilterManager::getOrientation(int sensorId, float &roll, float &pitch, floa
   yaw = euler_angles[sensorId].yaw;     // Lateral Bending
 }
 
-void FilterManager::calibrateSensorToSegmentAlignment(int sensorId) {
-  if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) {
-    return;
-  }
-  
-  Serial.println("=== Sensor-to-Segment Alignment Calibration ===");
-  Serial.println("This procedure will align the sensor axes with anatomical axes.");
-  Serial.println("Please follow the instructions carefully:");
-  
-  // Step 1: Neutral position calibration
-  Serial.println("\nSTEP 1: Place the person in a neutral standing position");
-  Serial.println("Press any key when ready...");
-  while (!Serial.available()) {}
-  while (Serial.available()) Serial.read(); // Clear buffer
-  
-  delay(3000); // Give time to stabilize
-  
-  // Read current orientation
-  float roll1, pitch1, yaw1;
-  getOrientation(sensorId, roll1, pitch1, yaw1);
-  
-  // Step 2: Forward flexion calibration
-  Serial.println("\nSTEP 2: Have the person perform a forward flexion (bend forward)");
-  Serial.println("Press any key when at maximum flexion...");
-  while (!Serial.available()) {}
-  while (Serial.available()) Serial.read();
-  
-  delay(1000);
-  
-  // Read flexed orientation
-  float roll2, pitch2, yaw2;
-  getOrientation(sensorId, roll2, pitch2, yaw2);
-  
-  // Calculate the primary flexion axis
-  float flex_axis[3] = {0, 0, 0};
-  
-  // The dominant change should be in pitch (Y-axis rotation)
-  if (fabs(pitch2 - pitch1) > fabs(roll2 - roll1) && fabs(pitch2 - pitch1) > fabs(yaw2 - yaw1)) {
-    // Correct alignment - Y is the flexion axis
-    Serial.println("Y-axis correctly aligned with flexion/extension");
-    flex_axis[1] = 1.0f;
-  } else if (fabs(roll2 - roll1) > fabs(pitch2 - pitch1) && fabs(roll2 - roll1) > fabs(yaw2 - yaw1)) {
-    // X-axis is capturing flexion - need to realign
-    Serial.println("X-axis is capturing flexion/extension - realigning");
-    flex_axis[0] = 1.0f;
-  } else {
-    // Z-axis is capturing flexion - need to realign
-    Serial.println("Z-axis is capturing flexion/extension - realigning");
-    flex_axis[2] = 1.0f;
-  }
-  
-  // Step 3: Lateral bending calibration
-  Serial.println("\nSTEP 3: Have the person perform a lateral bend (to the side)");
-  Serial.println("Press any key when at maximum lateral bend...");
-  while (!Serial.available()) {}
-  while (Serial.available()) Serial.read();
-  
-  delay(1000);
-  
-  // Read laterally bent orientation
-  float roll3, pitch3, yaw3;
-  getOrientation(sensorId, roll3, pitch3, yaw3);
-  
-  // Calculate the primary lateral bending axis
-  float lateral_axis[3] = {0, 0, 0};
-  
-  // The dominant change should be in yaw (Z-axis rotation)
-  if (fabs(yaw3 - yaw1) > fabs(roll3 - roll1) && fabs(yaw3 - yaw1) > fabs(pitch3 - pitch1)) {
-    // Correct alignment - Z is the lateral bending axis
-    Serial.println("Z-axis correctly aligned with lateral bending");
-    lateral_axis[2] = 1.0f;
-  } else if (fabs(roll3 - roll1) > fabs(yaw3 - yaw1) && fabs(roll3 - roll1) > fabs(pitch3 - pitch1)) {
-    // X-axis is capturing lateral bending - need to realign
-    Serial.println("X-axis is capturing lateral bending - realigning");
-    lateral_axis[0] = 1.0f;
-  } else {
-    // Y-axis is capturing lateral bending - need to realign
-    Serial.println("Y-axis is capturing lateral bending - realigning");
-    lateral_axis[1] = 1.0f;
-  }
-  
-  // Calculate third axis as cross product of first two
-  float axial_axis[3];
-  axial_axis[0] = flex_axis[1] * lateral_axis[2] - flex_axis[2] * lateral_axis[1];
-  axial_axis[1] = flex_axis[2] * lateral_axis[0] - flex_axis[0] * lateral_axis[2];
-  axial_axis[2] = flex_axis[0] * lateral_axis[1] - flex_axis[1] * lateral_axis[0];
-  
-  // Normalize axial axis
-  float mag = sqrt(axial_axis[0]*axial_axis[0] + axial_axis[1]*axial_axis[1] + axial_axis[2]*axial_axis[2]);
-  if (mag > 0.0f) {
-    axial_axis[0] /= mag;
-    axial_axis[1] /= mag;
-    axial_axis[2] /= mag;
-  }
-  
-  // Create alignment rotation matrix
-  alignmentMatrix[sensorId][0][0] = axial_axis[0];
-  alignmentMatrix[sensorId][0][1] = axial_axis[1];
-  alignmentMatrix[sensorId][0][2] = axial_axis[2];
-  
-  alignmentMatrix[sensorId][1][0] = flex_axis[0];
-  alignmentMatrix[sensorId][1][1] = flex_axis[1];
-  alignmentMatrix[sensorId][1][2] = flex_axis[2];
-  
-  alignmentMatrix[sensorId][2][0] = lateral_axis[0];
-  alignmentMatrix[sensorId][2][1] = lateral_axis[1];
-  alignmentMatrix[sensorId][2][2] = lateral_axis[2];
-  
-  Serial.println("\nSensor-to-segment alignment calibration complete!");
-  Serial.println("The sensor axes are now aligned with anatomical axes:");
-  Serial.println("X-axis = Axial Rotation");
-  Serial.println("Y-axis = Flexion/Extension");
-  Serial.println("Z-axis = Lateral Bending");
-}

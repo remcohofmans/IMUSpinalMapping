@@ -86,15 +86,12 @@ public:
   
   // Check for magnetic disturbances
   bool isMagneticDisturbanceDetected(int sensorId);
-  
-  // Calibration for sensor-to-segment alignment
-  void calibrateSensorToSegmentAlignment(int sensorId);
-  
+    
   // Quaternion operations
-  void normalize_quaternion(Quaternion &q);
-  void matrix_to_quaternion(float R[3][3], Quaternion &q);
-  void quaternion_to_euler(const Quaternion &q, EulerAngles &euler);
-  void euler_to_quaternion(const EulerAngles &euler, Quaternion &q);
+  void normalizeQuaternion(Quaternion &q);
+  void matrixToQuaternion(float R[3][3], Quaternion &q);
+  void quaternionToEuler(const Quaternion &q, EulerAngles &euler);
+  void eulerToQuaternion(const EulerAngles &euler, Quaternion &q);
   void slerp(const Quaternion &q1, const Quaternion &q2, float t, Quaternion &result);
 
 private:
@@ -142,10 +139,7 @@ private:
   // Enhanced orientation representation
   EulerAngles euler_angles[NO_OF_UNITS];
   Quaternion quaternions[NO_OF_UNITS];
-  
-  // Alignment matrices for sensor-to-segment alignment
-  float alignmentMatrix[NO_OF_UNITS][3][3];
-  
+    
   // Magnetic disturbance detection
   bool magDisturbance[NO_OF_UNITS];
   float lastMagMagnitude[NO_OF_UNITS];
