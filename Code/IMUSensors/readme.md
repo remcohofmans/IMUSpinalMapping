@@ -161,10 +161,10 @@ Used for orientation estimation with DYNAMIC weighting:
 
 The system offers quaternion-based orientation tracking for improved stability:
 
-Avoids gimbal lock issues that affect Euler angles
-Provides smoother transitions between orientations
-Implements SLERP (Spherical Linear Interpolation) for quaternion blending
-Transforms between quaternions and Euler angles as needed
+- Avoids gimbal lock issues that affect Euler angles
+- Provides smoother transitions between orientations
+- Implements SLERP (Spherical Linear Interpolation) for quaternion blending
+- Transforms between quaternions and Euler angles as needed
 
 ### Regional Settings
 
