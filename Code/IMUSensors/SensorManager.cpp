@@ -133,8 +133,8 @@ void SensorManager::configureForNormalOperation() {
     if (!sensorActive[i]) continue;
     
     icm[i].setAccelRange(ICM20948_ACCEL_RANGE_4_G);
-    icm[i].setGyroRange(ICM20948_GYRO_RANGE_500_DPS);
-    icm[i].setMagDataRate(AK09916_MAG_DATARATE_50_HZ);
+    icm[i].setGyroRange(ICM20948_GYRO_RANGE_1000_DPS);
+    icm[i].setMagDataRate(AK09916_MAG_DATARATE_100_HZ);
   }
   
   Serial.println("Sensors configured for normal operation");

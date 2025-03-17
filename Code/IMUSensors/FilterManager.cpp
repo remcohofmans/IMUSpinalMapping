@@ -39,13 +39,6 @@ FilterManager::FilterManager() :
     quaternions[i].y = 0.0f;
     quaternions[i].z = 0.0f;
     
-    // Initialize sensor-to-segment alignment matrices to identity
-    for (int r = 0; r < 3; r++) {
-      for (int c = 0; c < 3; c++) {
-        alignmentMatrix[i][r][c] = (r == c) ? 1.0f : 0.0f;
-      }
-    }
-    
     // Initialize magnetic disturbance detection
     magDisturbance[i] = false;
     lastMagMagnitude[i] = 0.0f;
@@ -425,98 +418,126 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   float accel_y = filteredData[sensorId].accel[1];
   float accel_z = filteredData[sensorId].accel[2];
   
-  float gyro_x = filteredData[sensorId].gyro[0];
-  float gyro_y = filteredData[sensorId].gyro[1];
-  float gyro_z = filteredData[sensorId].gyro[2];
+  float gyro_x = filteredData[sensorId].gyro[0]; // rad/s
+  float gyro_y = filteredData[sensorId].gyro[1]; // rad/s
+  float gyro_z = filteredData[sensorId].gyro[2]; // rad/s
   
   float mag_x = filteredData[sensorId].mag[0];
   float mag_y = filteredData[sensorId].mag[1];
   float mag_z = filteredData[sensorId].mag[2];
   
-  // ----- Adapted to the spinal coordinate system -----
-  // X-axis points down the spine
-  // Y-axis points to the left
-  // Z-axis points out of the back
-  
   // Calculate magnitude of acceleration for tilt reliability estimation
   float accel_mag = sqrt(accel_x*accel_x + accel_y*accel_y + accel_z*accel_z);
   
-  // Check alignment with gravity for adaptive filtering
-  float x_alignment = fabs(accel_x / accel_mag);
-  float reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f); // Near 9.8 m/s²
+  // Check alignment with gravity and determine reliability
+  float x_alignment = fabs(accel_x / accel_mag); // Should be high when X is aligned with gravity
+  bool reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f); // Near 9.8 m/s²
   
-  // Calculate tilt angles from accelerometer
-  float accel_roll = atan2(accel_y, accel_z) * 180.0f / M_PI;
-  float accel_pitch = atan2(-accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
+  // Calculate pitch and yaw from accelerometer
+  // For our coordinate system (X down, Y left, Z out of back):
+  float accel_pitch = atan2(accel_z, sqrt(accel_x*accel_x + accel_y*accel_y)) * 180.0f / M_PI; // Flexion/Extension
+  float accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI; // Lateral Bending
   
-  // Apply tilt compensation to magnetometer readings
+  // We can't reliably determine roll from accelerometer alone when X is aligned with gravity
+  // Instead, we'll use magnetometer data to help with roll (axial rotation)
+  
+  // First, normalize magnetometer readings
+  float mag_magnitude = sqrt(mag_x*mag_x + mag_y*mag_y + mag_z*mag_z);
+  if (mag_magnitude > 0.0f) {
+    mag_x /= mag_magnitude;
+    mag_y /= mag_magnitude;
+    mag_z /= mag_magnitude;
+  }
+  
+  // Apply tilt compensation to magnetometer using current orientation estimate
   float cos_roll = cos(euler_angles[sensorId].roll * M_PI / 180.0f);
   float sin_roll = sin(euler_angles[sensorId].roll * M_PI / 180.0f);
   float cos_pitch = cos(euler_angles[sensorId].pitch * M_PI / 180.0f);
   float sin_pitch = sin(euler_angles[sensorId].pitch * M_PI / 180.0f);
   
   // Rotate magnetometer readings to horizontal plane
-  float mag_x_comp = mag_x * cos_pitch + mag_z * sin_pitch;
-  float mag_y_comp = mag_x * sin_roll * sin_pitch + mag_y * cos_roll - mag_z * sin_roll * cos_pitch;
+  // Adjusting signs for our coordinate system
+  float mag_x_comp = mag_x * cos_pitch + mag_y * sin_roll * sin_pitch + mag_z * cos_roll * sin_pitch;
+  float mag_y_comp = mag_y * cos_roll - mag_z * sin_roll;
   
-  // Calculate yaw (heading) from tilt-compensated magnetometer
-  float mag_yaw = atan2(-mag_y_comp, mag_x_comp) * 180.0f / M_PI;
+  // Calculate roll (axial rotation) using magnetometer
+  // This gives us rotation around X axis which can't be determined from accelerometer
+  float mag_roll = atan2(mag_y_comp, mag_x_comp) * 180.0f / M_PI;
   
-  // Handle magnetic declination if needed
-  mag_yaw += MAGNETIC_DECLINATION;
+  // Apply magnetic declination adjustment
+  mag_roll += MAGNETIC_DECLINATION;
   
-  // Calculate new angles using complementary filter with adaptive weights
-  float alpha_roll = ALPHA;
+  // Normalize mag_roll to prevent jumps
+  while (mag_roll > 180.0f) mag_roll -= 360.0f;
+  while (mag_roll < -180.0f) mag_roll += 360.0f;
+  
+  // Determine adaptive filter coefficients
+  float alpha_roll = 0.98f;  // Default: 98% gyro, 2% mag
   float alpha_pitch = ALPHA;
   float alpha_yaw = ALPHA;
   
   if (adaptiveFilteringEnabled) {
     // Adjust weights based on sensor reliability
     
-    // For roll - less reliable when X aligned with gravity
-    if (x_alignment > 0.9f) {
-      alpha_roll = 0.98f; // More weight to gyro
-    } else if (!reliable_accel) {
-      alpha_roll = 0.95f; // Less weight to potentially noisy accelerometer
+    // For roll - rely more on gyro when magnetic disturbance detected
+    if (magDisturbance[sensorId]) {
+      alpha_roll = 0.995f; // Almost entirely rely on gyro during disturbance
+    } else {
+      // When X is aligned with gravity, rely more on magnetometer for roll
+      if (x_alignment > 0.9f) {
+        alpha_roll = 0.85f; // More weight to magnetometer for roll when X aligned with gravity
+      }
     }
     
-    // For pitch - generally reliable with accelerometer
+    // For pitch - generally reliable with accelerometer when not accelerating
     if (!reliable_accel) {
       alpha_pitch = 0.95f; // Less weight to potentially noisy accelerometer
+    } else {
+      alpha_pitch = 0.85f; // More weight to accelerometer when reliable
     }
     
     // For yaw - less reliable when magnetic disturbance detected
     if (magDisturbance[sensorId]) {
-      alpha_yaw = 0.999f; // Almost entirely rely on gyro during disturbance
+      alpha_yaw = 0.995f; // Almost entirely rely on gyro during disturbance
+    } else {
+      alpha_yaw = 0.9f; // Normal weight otherwise
     }
   }
   
   // Integrate gyro rates
-  float gyro_roll = euler_angles[sensorId].roll + gyro_x * dt;
-  float gyro_pitch = euler_angles[sensorId].pitch + gyro_y * dt;
-  float gyro_yaw = euler_angles[sensorId].yaw + gyro_z * dt;
+  float gyro_roll = euler_angles[sensorId].roll + gyro_x * dt * 180.0f / M_PI;
+  float gyro_pitch = euler_angles[sensorId].pitch + gyro_y * dt * 180.0f / M_PI;
+  float gyro_yaw = euler_angles[sensorId].yaw + gyro_z * dt * 180.0f / M_PI;
   
-  // Normalize mag_yaw to prevent jumps at ±180°
-  while (mag_yaw - gyro_yaw > 180.0f) mag_yaw -= 360.0f;
-  while (mag_yaw - gyro_yaw < -180.0f) mag_yaw += 360.0f;
+  // Normalize angles to prevent jumps
+  while (mag_roll - gyro_roll > 180.0f) mag_roll -= 360.0f;
+  while (mag_roll - gyro_roll < -180.0f) mag_roll += 360.0f;
+  
+  while (accel_pitch - gyro_pitch > 180.0f) accel_pitch -= 360.0f;
+  while (accel_pitch - gyro_pitch < -180.0f) accel_pitch += 360.0f;
+  
+  while (accel_yaw - gyro_yaw > 180.0f) accel_yaw -= 360.0f;
+  while (accel_yaw - gyro_yaw < -180.0f) accel_yaw += 360.0f;
   
   // Apply complementary filter
-  float new_roll = alpha_roll * gyro_roll + (1.0f - alpha_roll) * accel_roll;
+  float new_roll = alpha_roll * gyro_roll + (1.0f - alpha_roll) * mag_roll;
   float new_pitch = alpha_pitch * gyro_pitch + (1.0f - alpha_pitch) * accel_pitch;
-  float new_yaw = alpha_yaw * gyro_yaw + (1.0f - alpha_yaw) * mag_yaw;
+  float new_yaw = alpha_yaw * gyro_yaw + (1.0f - alpha_yaw) * accel_yaw;
   
   // Normalize angles to -180° to +180° range
   while (new_roll > 180.0f) new_roll -= 360.0f;
   while (new_roll < -180.0f) new_roll += 360.0f;
+  
   while (new_pitch > 180.0f) new_pitch -= 360.0f;
   while (new_pitch < -180.0f) new_pitch += 360.0f;
+  
   while (new_yaw > 180.0f) new_yaw -= 360.0f;
   while (new_yaw < -180.0f) new_yaw += 360.0f;
   
   // Update Euler angles
-  euler_angles[sensorId].roll = new_roll;   // Axial rotation
-  euler_angles[sensorId].pitch = new_pitch; // Flexion/Extension
-  euler_angles[sensorId].yaw = new_yaw;     // Lateral bending
+  euler_angles[sensorId].roll = new_roll;   // Axial rotation (around X)
+  euler_angles[sensorId].pitch = new_pitch; // Flexion/Extension (around Y)
+  euler_angles[sensorId].yaw = new_yaw;     // Lateral bending (around Z)
   
   // Update quaternion from Euler angles for consistency
   eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
@@ -646,55 +667,55 @@ void FilterManager::applySpinalConstraints(int sensorId) {
     flexion_extension = euler_angles[sensorId].pitch;
     lateral_bending = euler_angles[sensorId].yaw;
   
-  // // Apply constraints based on sensor position
-  // if (sensorId == 0) {
-  //   // Thoracic limits
-  //   // Axial Rotation (around X)
-  //   if (axial_rotation > 46.8f) axial_rotation = 46.8f;
-  //   if (axial_rotation < -46.8f) axial_rotation = -46.8f;
+  // Apply constraints based on sensor position
+  if (sensorId == 0) {
+    // Thoracic limits
+    // Axial Rotation (around X)
+    if (axial_rotation > 46.8f) axial_rotation = 46.8f;
+    if (axial_rotation < -46.8f) axial_rotation = -46.8f;
     
-  //   // Flexion/Extension (around Y)
-  //   if (flexion_extension > 26.0f) flexion_extension = 26.0f;   // Flexion limit
-  //   if (flexion_extension < -22.0f) flexion_extension = -22.0f; // Extension limit
+    // Flexion/Extension (around Y)
+    if (flexion_extension > 26.0f) flexion_extension = 26.0f;   // Flexion limit
+    if (flexion_extension < -22.0f) flexion_extension = -22.0f; // Extension limit
     
-  //   // Lateral Bending (around Z)
-  //   if (lateral_bending > 30.0f) lateral_bending = 30.0f;
-  //   if (lateral_bending < -30.0f) lateral_bending = -30.0f;
-  // } 
-  // else if (sensorId == 1) {
-  //   // Lumbar limits
-  //   // Axial Rotation (around X)
-  //   if (axial_rotation > 15.3f) axial_rotation = 15.3f;
-  //   if (axial_rotation < -15.3f) axial_rotation = -15.3f;
+    // Lateral Bending (around Z)
+    if (lateral_bending > 30.0f) lateral_bending = 30.0f;
+    if (lateral_bending < -30.0f) lateral_bending = -30.0f;
+  } 
+  else if (sensorId == 1) {
+    // Lumbar limits
+    // Axial Rotation (around X)
+    if (axial_rotation > 15.3f) axial_rotation = 15.3f;
+    if (axial_rotation < -15.3f) axial_rotation = -15.3f;
     
-  //   // Flexion/Extension (around Y)
-  //   if (flexion_extension > 65.0f) flexion_extension = 65.0f;   // Flexion limit
-  //   if (flexion_extension < -31.0f) flexion_extension = -31.0f; // Extension limit
+    // Flexion/Extension (around Y)
+    if (flexion_extension > 65.0f) flexion_extension = 65.0f;   // Flexion limit
+    if (flexion_extension < -31.0f) flexion_extension = -31.0f; // Extension limit
     
-  //   // Lateral Bending (around Z)
-  //   if (lateral_bending > 30.0f) lateral_bending = 30.0f;
-  //   if (lateral_bending < -30.0f) lateral_bending = -30.0f;
-  // }
+    // Lateral Bending (around Z)
+    if (lateral_bending > 30.0f) lateral_bending = 30.0f;
+    if (lateral_bending < -30.0f) lateral_bending = -30.0f;
+  }
   
-  // // Apply coupling between lateral bending and axial rotation
-  // // This mimics the natural coupling in spinal movement
-  // if (abs(lateral_bending) > 10.0f) {
-  //   // When lateral bending exceeds 10 degrees, couple with axial rotation
-  //   float coupling_factor = (sensorId == 0) ? 0.3f : 0.1f;
-  //   float coupled_rotation = axial_rotation + 
-  //     (lateral_bending - (lateral_bending > 0 ? 10.0f : -10.0f)) * coupling_factor;
+  // Apply coupling between lateral bending and axial rotation
+  // This mimics the natural coupling in spinal movement
+  if (abs(lateral_bending) > 10.0f) {
+    // When lateral bending exceeds 10 degrees, couple with axial rotation
+    float coupling_factor = (sensorId == 0) ? 0.3f : 0.1f;
+    float coupled_rotation = axial_rotation + 
+      (lateral_bending - (lateral_bending > 0 ? 10.0f : -10.0f)) * coupling_factor;
     
-  //   // Apply limits again
-  //   if (sensorId == 0) {
-  //     if (coupled_rotation > 46.8f) coupled_rotation = 46.8f;
-  //     if (coupled_rotation < -46.8f) coupled_rotation = -46.8f;
-  //   } else {
-  //     if (coupled_rotation > 15.3f) coupled_rotation = 15.3f;
-  //     if (coupled_rotation < -15.3f) coupled_rotation = -15.3f;
-  //   }
+    // Apply limits again
+    if (sensorId == 0) {
+      if (coupled_rotation > 46.8f) coupled_rotation = 46.8f;
+      if (coupled_rotation < -46.8f) coupled_rotation = -46.8f;
+    } else {
+      if (coupled_rotation > 15.3f) coupled_rotation = 15.3f;
+      if (coupled_rotation < -15.3f) coupled_rotation = -15.3f;
+    }
     
-  //   axial_rotation = coupled_rotation;
-  // }
+    axial_rotation = coupled_rotation;
+  }
   
   // Update the angles
   if (useQuaternions) {
