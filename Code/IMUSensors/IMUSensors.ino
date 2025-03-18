@@ -45,9 +45,9 @@ void setup(void) {
   }
   
   // Initialize all the managers with references to each other
-  filterManager.initialize(&sensorManager);
   calibrationManager.initialize(&sensorManager, &filterManager);
   storageManager.initialize(&calibrationManager);
+  filterManager.initialize(&sensorManager, &calibrationManager);
   outputManager.initialize(&sensorManager, &calibrationManager, &filterManager);
 
   // Initialize LittleFS - load the HTML file after this step

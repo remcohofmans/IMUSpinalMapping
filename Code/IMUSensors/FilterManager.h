@@ -40,7 +40,7 @@ public:
   FilterManager();
   
   // Initialize with sensor manager
-  void initialize(SensorManager* sensorMgr);
+  void initialize(SensorManager* sensorMgr, CalibrationManager* calMgr);
     
   // Reset timers for complementary filter
   void resetTimers();

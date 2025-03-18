@@ -45,8 +45,9 @@ FilterManager::FilterManager() :
   }
 }
 
-void FilterManager::initialize(SensorManager* sensorMgr) {
+void FilterManager::initialize(SensorManager* sensorMgr, CalibrationManager* calMgr) {
   sensorManager = sensorMgr;
+  calibrationManager = calMgr;
   initializeFilters();
 }
 
@@ -320,6 +321,31 @@ void FilterManager::processAllSensors() {
     sensorManager->getRawMag(sensorId, mag_x, mag_y, mag_z);
     temperature = sensorManager->getTemperature(sensorId);
     
+    Serial.println("=== Raw Sensor Data for Sensor " + String(sensorId) + " ===");
+    Serial.print("Raw Accelerometer (m/s²): X=");
+    Serial.print(accel_x, 4);
+    Serial.print(", Y=");
+    Serial.print(accel_y, 4);
+    Serial.print(", Z=");
+    Serial.println(accel_z, 4);
+
+    Serial.print("Raw Gyroscope (rad/s): X=");
+    Serial.print(gyro_x, 4);
+    Serial.print(", Y=");
+    Serial.print(gyro_y, 4);
+    Serial.print(", Z=");
+    Serial.println(gyro_z, 4);
+
+    Serial.print("Raw Magnetometer (uT): X=");
+    Serial.print(mag_x, 4);
+    Serial.print(", Y=");
+    Serial.print(mag_y, 4);
+    Serial.print(", Z=");
+    Serial.println(mag_z, 4);
+
+    Serial.print("Temperature (°C): ");
+    Serial.println(temperature, 2);
+
     // Apply calibration
     float cal_accel_x, cal_accel_y, cal_accel_z;
     float cal_gyro_x, cal_gyro_y, cal_gyro_z;
@@ -345,19 +371,31 @@ void FilterManager::processAllSensors() {
       cal_mag_z = mag_z;
     }
     
+    Serial.println("---------------BEFORE MA--------------------");
+
+    Serial.print("Sensor ");
+    Serial.println(sensorId);
+    Serial.print("beforeMA_accel_x: ");
+    Serial.println(cal_accel_x, 2);
+    
     // Apply Moving Average filter
     float ma_accel_x = applyMovingAverage(cal_accel_x, accel_x_buffer[sensorId], buffer_index[sensorId]);
     float ma_accel_y = applyMovingAverage(cal_accel_y, accel_y_buffer[sensorId], buffer_index[sensorId]);
     float ma_accel_z = applyMovingAverage(cal_accel_z, accel_z_buffer[sensorId], buffer_index[sensorId]);
-    
-    float ma_gyro_x = applyMovingAverage(cal_gyro_x, gyro_x_buffer[sensorId], buffer_index[sensorId]);
-    float ma_gyro_y = applyMovingAverage(cal_gyro_y, gyro_y_buffer[sensorId], buffer_index[sensorId]);
-    float ma_gyro_z = applyMovingAverage(cal_gyro_z, gyro_z_buffer[sensorId], buffer_index[sensorId]);
-    
+
     float ma_mag_x = applyMovingAverage(cal_mag_x, mag_x_buffer[sensorId], buffer_index[sensorId]);
     float ma_mag_y = applyMovingAverage(cal_mag_y, mag_y_buffer[sensorId], buffer_index[sensorId]);
     float ma_mag_z = applyMovingAverage(cal_mag_z, mag_z_buffer[sensorId], buffer_index[sensorId]);
     
+    float ma_gyro_x = cal_gyro_x;
+    float ma_gyro_y = cal_gyro_y;
+    float ma_gyro_z = cal_gyro_z;
+    
+    Serial.println("---------------BEFORE KALMAN, AFTER MA--------------------");
+
+    Serial.print("ma_accel_x: "); Serial.println(ma_accel_x, 2);
+    Serial.print("ma_accel_y: "); Serial.println(ma_accel_y, 2);
+
     // Apply Kalman filter
     filteredData[sensorId].accel[0] = applyKalmanFilter(ma_accel_x, kalman_accel_x[sensorId]);
     filteredData[sensorId].accel[1] = applyKalmanFilter(ma_accel_y, kalman_accel_y[sensorId]);
@@ -435,9 +473,12 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   
   // Calculate pitch and yaw from accelerometer
   // For our coordinate system (X down, Y left, Z out of back):
-  float accel_pitch = atan2(accel_z, sqrt(accel_x*accel_x + accel_y*accel_y)) * 180.0f / M_PI; // Flexion/Extension
-  float accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI; // Lateral Bending
-  
+  float accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;  // Flexion/Extension
+  float accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;  // Lateral Bending
+
+  Serial.print("accel_x: "); Serial.println(accel_x, 2);
+  Serial.print("accel_y: "); Serial.println(accel_y, 2);
+
   // We can't reliably determine roll from accelerometer alone when X is aligned with gravity
   // Instead, we'll use magnetometer data to help with roll (axial rotation)
   
@@ -472,9 +513,9 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   while (mag_roll < -180.0f) mag_roll += 360.0f;
   
   // Determine adaptive filter coefficients
-  float alpha_roll = 0.98f;  // Default: 98% gyro, 2% mag
-  float alpha_pitch = ALPHA;
-  float alpha_yaw = ALPHA;
+  float alpha_roll = 0.95;  // Default: 98% gyro, 2% mag
+  float alpha_pitch = 0.95;
+  float alpha_yaw = 0.95;
   
   if (adaptiveFilteringEnabled) {
     // Adjust weights based on sensor reliability
@@ -523,6 +564,8 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   float new_roll = alpha_roll * gyro_roll + (1.0f - alpha_roll) * mag_roll;
   float new_pitch = alpha_pitch * gyro_pitch + (1.0f - alpha_pitch) * accel_pitch;
   float new_yaw = alpha_yaw * gyro_yaw + (1.0f - alpha_yaw) * accel_yaw;
+
+  // ANGLES ALREADY WRONG HERE
   
   // Normalize angles to -180° to +180° range
   while (new_roll > 180.0f) new_roll -= 360.0f;
