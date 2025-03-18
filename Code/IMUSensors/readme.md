@@ -80,7 +80,9 @@ Each sensor has 9 DOF and provides the following measurements:
 ### Calibration Data
 
 For each sensor unit, the system stores:
-- Accelerometer offsets and scale factors (if smaller than 1 is stretched and should be compressed, if bigger than 1, axis is compressed and should be stretched)
+- Accelerometer offsets and scale factors
+  -> if <1: axis is stretched and should be compressed
+  -> if > 1: axis is compressed and should be stretched
 - Gyroscope offsets and scale factors
 - Magnetometer hard iron offsets and soft iron transformation matrix
 - Temperature reference and temperature coefficients
