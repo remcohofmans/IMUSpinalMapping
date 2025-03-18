@@ -27,13 +27,13 @@ This system is designed to manage, calibrate, and process data from multiple IMU
 
 ### Key Features
 
-Support for multiple IMU sensor units (currently configured for 2 units)
-Comprehensive calibration procedures for all sensor types
-Advanced filtering using Kalman and complementary filters
-Temperature compensation for improved accuracy
-Real-time orientation tracking using both Euler angles and quaternions
-Web interface hosted on ESP32 with data streaming via WebSocket protocol
-EEPROM storage for calibration data persistence
+- Support for multiple IMU sensor units (currently configured for 2 units)
+- Comprehensive calibration procedures for all sensor types
+- Advanced filtering using Kalman and complementary filters
+- Temperature compensation for improved accuracy
+- Real-time orientation tracking using both Euler angles and quaternions
+- Web interface hosted on ESP32 with data streaming via WebSocket protocol
+- EEPROM storage for calibration data persistence
 
 ## System Architecture
 
@@ -80,7 +80,7 @@ Each sensor has 9 DOF and provides the following measurements:
 ### Calibration Data
 
 For each sensor unit, the system stores:
-- Accelerometer offsets and scale factors
+- Accelerometer offsets and scale factors (if smaller than 1 is stretched and should be compressed, if bigger than 1, axis is compressed and should be stretched)
 - Gyroscope offsets and scale factors
 - Magnetometer hard iron offsets and soft iron transformation matrix
 - Temperature reference and temperature coefficients
