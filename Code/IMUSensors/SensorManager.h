@@ -32,6 +32,7 @@ public:
   void getRawGyro(int sensorId, float &x, float &y, float &z) const;
   void getRawMag(int sensorId, float &x, float &y, float &z) const;
   float getTemperature(int sensorId) const;
+  unsigned long getReadingTimestamp(int sensorId) const; 
   
   // Configure sensor settings
   void configureForCalibration();
@@ -48,6 +49,7 @@ private:
     float gyro[3];  // X, Y, Z
     float mag[3];   // X, Y, Z
     float temp;     // Temperature
+    unsigned long timestamp; 
   };
   
   SensorData sensorData[NO_OF_UNITS];

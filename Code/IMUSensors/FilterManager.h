@@ -41,9 +41,6 @@ public:
   
   // Initialize with sensor manager
   void initialize(SensorManager* sensorMgr, CalibrationManager* calMgr);
-    
-  // Reset timers for complementary filter
-  void resetTimers();
   
   // Configure filtering options
   void configureFiltering(bool enableAdaptiveFiltering, bool enableAnatomicalConstraints, bool useQuaternionMode);
@@ -67,15 +64,14 @@ public:
   void updateEulerAngles(int sensorId, float dt);
   void updateQuaternionOrientation(int sensorId, float dt);
 
+  // Configure axis mapping
+  void configureAxisMapping(int xMap, int yMap, int zMap, int xSign, int ySign, int zSign);
+
   // Calculate rotation matrix from current orientation
   void calculateRotationMatrix(int sensorId, float rotMatrix[3][3]);
 
   // Extract Euler angles from a rotation matrix
   void extractEulerAnglesFromMatrix(float rotMatrix[3][3], float &roll, float &pitch, float &yaw);
-
-  // Transform vectors between coordinate frames
-  void transformVectorToSensor(int sensorId, float vec[3], float result[3]);
-  void transformVectorToGlobal(int sensorId, float vec[3], float result[3]);
   
   // Get filtered data values
   void getFilteredAccel(int sensorId, float &x, float &y, float &z);
@@ -121,6 +117,10 @@ private:
   float mag_y_buffer[NO_OF_UNITS][FILTER_SAMPLES];
   float mag_z_buffer[NO_OF_UNITS][FILTER_SAMPLES];
   int buffer_index[NO_OF_UNITS];
+
+  // Axis remapping configuration
+  int axisMapping[3] = {0, 1, 2};  // Default mapping: X->X, Y->Y, Z->Z
+  int axisSigns[3] = {1, 1, 1};    // Default signs: all positive
   
   // Kalman filter states
   KalmanState kalman_accel_x[NO_OF_UNITS];

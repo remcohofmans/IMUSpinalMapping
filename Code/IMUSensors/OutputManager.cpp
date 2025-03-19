@@ -11,7 +11,7 @@ OutputManager::OutputManager()
     calibrationManager(nullptr),
     filterManager(nullptr),
     lastPrintTime(0),
-    outputRate(50) // Default to 50ms/0.05s output rate
+    outputRate(2000) // Default to 50ms/0.05s output rate
 {
 }
 
@@ -25,7 +25,7 @@ void OutputManager::initialize(SensorManager* sensorMgr, CalibrationManager* cal
 void OutputManager::setOutputRate(unsigned long rate_ms) {
   outputRate = rate_ms;
 }
-
+  
 void OutputManager::printSensorData() {
   unsigned long now = millis();
   

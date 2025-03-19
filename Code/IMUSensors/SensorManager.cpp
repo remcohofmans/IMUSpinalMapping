@@ -62,17 +62,8 @@ void SensorManager::readAllSensors() {
     
     sensorData[i].temp = temp.temperature;
 
-    // After reading each sensor
-    Serial.print("DEBUG readAllSensors: Sensor ");
-    Serial.print(i);
-    Serial.print(" Accel X=");
-    Serial.println(accel.acceleration.x);
-    
-    // After storing to array
-    Serial.print("DEBUG stored in array: sensorData[");
-    Serial.print(i);
-    Serial.print("].accel[0]=");
-    Serial.println(sensorData[i].accel[0]);
+    // Store timestamp of this reading
+    sensorData[i].timestamp = millis();
   }
 }
 
@@ -92,11 +83,6 @@ void SensorManager::getRawAccel(int sensorId, float &x, float &y, float &z) cons
     x = y = z = 0;
     return;
   }
-  
-  Serial.print("DEBUG getRawAccel: Sensor ");
-  Serial.print(sensorId);
-  Serial.print(" returning X = ");
-  Serial.println(sensorData[sensorId].accel[0]);
 
   x = sensorData[sensorId].accel[0];
   y = sensorData[sensorId].accel[1];
@@ -131,6 +117,14 @@ float SensorManager::getTemperature(int sensorId) const {
   }
   
   return sensorData[sensorId].temp;
+}
+
+unsigned long SensorManager::getReadingTimestamp(int sensorId) const {
+  if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorActive[sensorId]) {
+    return 0;
+  }
+  
+  return sensorData[sensorId].timestamp;
 }
 
 void SensorManager::configureForCalibration() {

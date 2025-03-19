@@ -46,13 +46,13 @@ void StorageManager::saveCalibrationToEEPROM() {
     }
   }
   
-  EEPROM.commit();  // Required to actually transfer buffered data from RAM to the flash memory
+  EEPROM.commit();  // Required to actually transfer buffered data from RAM to flash memory
   Serial.println("Calibration data saved to EEPROM");
 }
 
 bool StorageManager::loadCalibrationFromEEPROM() {
   if (!calibrationManager) {
-    Serial.println("Error: Cannot load calibration - CalibrationManager not initialized");
+    Serial.println("Error: Cannot load calibration data - CalibrationManager not initialized");
     return false;
   }
   

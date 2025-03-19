@@ -93,11 +93,6 @@ void FilterManager::initializeFilters() {
   }
 }
 
-void FilterManager::resetTimers() {
-  unsigned long now = millis();
-  lastTime = now;
-}
-
 void FilterManager::configureFiltering(bool enableAdaptiveFiltering, bool enableAnatomicalConstraints, bool useQuaternionMode) {
   adaptiveFilteringEnabled = enableAdaptiveFiltering;
   anatomicalConstraintsEnabled = enableAnatomicalConstraints;
@@ -298,17 +293,17 @@ void FilterManager::processAllSensors() {
     return;
   }
   
-  unsigned long currentTime = millis();
-  float dt = (currentTime - lastTime) / 1000.0f;
-  lastTime = currentTime;
-  
-  // Prevent large time jumps
-  if (dt > 0.2f) dt = 0.2f;
-  if (dt < 0.001f) dt = 0.001f; // Also prevent very small dt 
-              // (due to timing anomalies or when loops execute faster than the timer resolution)
   for (int sensorId = 0; sensorId < NO_OF_UNITS; sensorId++) {
     if (!sensorManager->isSensorActive(sensorId)) continue;
-    
+
+    unsigned long currentTime = millis();
+    float dt = (currentTime - sensorManager->getReadingTimestamp(sensorId)) / 1000.0f;
+    lastTime = currentTime;
+    // Prevent large time jumps
+    if (dt > 0.2f) dt = 0.2f;
+    if (dt < 0.001f) dt = 0.001f; // Also prevent very small dt 
+                // (due to timing anomalies or when loops execute faster than the timer resolution)
+  
     // Get sensor readings
     float accel_x, accel_y, accel_z;
     float gyro_x, gyro_y, gyro_z;
@@ -320,6 +315,11 @@ void FilterManager::processAllSensors() {
     sensorManager->getRawGyro(sensorId, gyro_x, gyro_y, gyro_z);
     sensorManager->getRawMag(sensorId, mag_x, mag_y, mag_z);
     temperature = sensorManager->getTemperature(sensorId);
+
+    // Apply axis mapping transformation
+    calibrationManager->transformSensorAxes(sensorId, accel_x, accel_y, accel_z, axisMapping, axisSigns);
+    calibrationManager->transformSensorAxes(sensorId, gyro_x, gyro_y, gyro_z, axisMapping, axisSigns);
+    calibrationManager->transformSensorAxes(sensorId, mag_x, mag_y, mag_z, axisMapping, axisSigns);                                         
     
     Serial.println("=== Raw Sensor Data for Sensor " + String(sensorId) + " ===");
     Serial.print("Raw Accelerometer (m/s²): X=");
@@ -371,12 +371,7 @@ void FilterManager::processAllSensors() {
       cal_mag_z = mag_z;
     }
     
-    Serial.println("---------------BEFORE MA--------------------");
-
-    Serial.print("Sensor ");
-    Serial.println(sensorId);
-    Serial.print("beforeMA_accel_x: ");
-    Serial.println(cal_accel_x, 2);
+    Serial.println("--------------- BEFORE MOVING AVG & AFTER CALIBRATING ---------------");
     
     // Apply Moving Average filter
     float ma_accel_x = applyMovingAverage(cal_accel_x, accel_x_buffer[sensorId], buffer_index[sensorId]);
@@ -391,7 +386,7 @@ void FilterManager::processAllSensors() {
     float ma_gyro_y = cal_gyro_y;
     float ma_gyro_z = cal_gyro_z;
     
-    Serial.println("---------------BEFORE KALMAN, AFTER MA--------------------");
+    Serial.println("--------------- BEFORE KALMAN, AFTER MOVING AVG ---------------");
 
     Serial.print("ma_accel_x: "); Serial.println(ma_accel_x, 2);
     Serial.print("ma_accel_y: "); Serial.println(ma_accel_y, 2);
@@ -472,12 +467,24 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   bool reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f); // Near 9.8 m/s²
   
   // Calculate pitch and yaw from accelerometer
-  // For our coordinate system (X down, Y left, Z out of back):
-  float accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;  // Flexion/Extension
-  float accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;  // Lateral Bending
+  // For our coordinate system (X down, Y left, Z out of back) to be used 
+  // without hitting Gimbal lock when positioning it vertically, we need to reinterpret the reference frame
+  float accel_pitch, accel_yaw;
 
-  Serial.print("accel_x: "); Serial.println(accel_x, 2);
-  Serial.print("accel_y: "); Serial.println(accel_y, 2);
+  // Adapt the calculation based on your preferred orientation
+  if (axisMapping[0] == 0) {
+    // Default configuration
+    accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
+    accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;
+  } else if (axisMapping[0] == 2) {
+    // X-axis down configuration
+    accel_pitch = atan2(accel_z, sqrt(accel_y*accel_y + accel_x*accel_x)) * 180.0f / M_PI;
+    accel_yaw = atan2(accel_y, accel_z) * 180.0f / M_PI;
+  } else {
+    // Other configurations
+    accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
+    accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;
+  }
 
   // We can't reliably determine roll from accelerometer alone when X is aligned with gravity
   // Instead, we'll use magnetometer data to help with roll (axial rotation)
@@ -696,6 +703,24 @@ void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   
   // Update Euler angles from quaternion for convenience
   quaternionToEuler(quaternions[sensorId], euler_angles[sensorId]);
+}
+
+void FilterManager::configureAxisMapping(int xMap, int yMap, int zMap, int xSign, int ySign, int zSign) {
+  // Set axis mapping (which input axis maps to which output axis)
+  // 0 = X, 1 = Y, 2 = Z
+  axisMapping[0] = (xMap >= 0 && xMap <= 2) ? xMap : 0;
+  axisMapping[1] = (yMap >= 0 && yMap <= 2) ? yMap : 1;
+  axisMapping[2] = (zMap >= 0 && zMap <= 2) ? zMap : 2;
+  
+  // Set axis signs (1 or -1 to invert axis)  
+  axisSigns[0] = (xSign == 1 || xSign == -1) ? xSign : 1;
+  axisSigns[1] = (ySign == 1 || ySign == -1) ? ySign : 1;
+  axisSigns[2] = (zSign == 1 || zSign == -1) ? zSign : 1;
+  
+  Serial.println("Axis mapping configured:");
+  Serial.print("X maps to axis "); Serial.print(axisMapping[0]); Serial.print(" with sign "); Serial.println(axisSigns[0]);
+  Serial.print("Y maps to axis "); Serial.print(axisMapping[1]); Serial.print(" with sign "); Serial.println(axisSigns[1]);
+  Serial.print("Z maps to axis "); Serial.print(axisMapping[2]); Serial.print(" with sign "); Serial.println(axisSigns[2]);
 }
 
 void FilterManager::applySpinalConstraints(int sensorId) {

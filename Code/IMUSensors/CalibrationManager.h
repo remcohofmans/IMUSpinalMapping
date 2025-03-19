@@ -7,9 +7,7 @@
 #define CALIBRATION_MANAGER_H
 
 #include "SensorManager.h"
-
-// Forward declaration to avoid circular dependency
-class FilterManager;
+#include "FilterManager.h"
 
 // Calibration data structure
 struct CalibrationData {
@@ -41,7 +39,7 @@ public:
   CalibrationManager();
   
   // Initialize with references to other managers
-  void initialize(SensorManager* sensorMgr, FilterManager* filterMgr);
+  void initialize(SensorManager* sensorMgr);
   
   // Calibration procedures
   void performFullCalibration();
@@ -60,6 +58,8 @@ public:
   
   // Utility functions
   void printCalibrationData();
+
+  void transformSensorAxes(int sensorId, float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]);
   
   // Access calibration data (for storage)
   CalibrationData* getCalibrationData(int sensorId);

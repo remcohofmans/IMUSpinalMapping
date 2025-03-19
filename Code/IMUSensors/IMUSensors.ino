@@ -45,12 +45,12 @@ void setup(void) {
   }
   
   // Initialize all the managers with references to each other
-  calibrationManager.initialize(&sensorManager, &filterManager);
+  calibrationManager.initialize(&sensorManager);
   storageManager.initialize(&calibrationManager);
   filterManager.initialize(&sensorManager, &calibrationManager);
   outputManager.initialize(&sensorManager, &calibrationManager, &filterManager);
 
-  // Initialize LittleFS - load the HTML file after this step
+  // Initialize LittleFS - load the HTML file
   if(!LittleFS.begin(true)) { // If mounting fails, it will automatically format the flash storage and then mount it
     Serial.println("LittleFS Mount Failed");
     return;
@@ -94,17 +94,18 @@ void setup(void) {
     Serial.println("Using existing calibration values");
   }
   
-  // Initialize timing for filters
-  filterManager.resetTimers();
+  // For vertical orientation with X pointing down:
+  filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
     
   // Initialize and start web server to serve data over HTTP and WebSockets to the browser client
   if (webServer.initialize(ssid, password, "esp32-imu")) {
     webServer.start();
   } else {
-    Serial.println("WARNING: Web server initialization failed");
+    Serial.println("WARNING: Web server initialization failed.");
     Serial.println("Continuing with Serial output only");
   }
   
+  // Server has been set up, regularly update the orientation data
   lastWebUpdateTime = millis();
 }
 
@@ -125,6 +126,6 @@ void loop() {
     lastWebUpdateTime = currentTime;
   }
   
-  // Small delay to not overwhelm the system
-  delay(5);
+  // Delay to not overwhelm the system
+  delay(2000);
 }
