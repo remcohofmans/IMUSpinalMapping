@@ -296,9 +296,9 @@ void CalibrationManager::calibrateMagnetometers() {
     
     // Collect samples for ellipsoid fitting
     const int max_samples = 500;
-    float mag_x[max_samples];
-    float mag_y[max_samples];
-    float mag_z[max_samples];
+    float* mag_x = new float[max_samples];
+    float* mag_y = new float[max_samples];
+    float* mag_z = new float[max_samples];
     int sample_count = 0;
     bool done = false;
     
@@ -358,9 +358,9 @@ void CalibrationManager::calibrateMagnetometers() {
     calibrationData[unit].mag_offset[2] = (min_z + max_z) / 2.0f;
     
     // Create centered data for covariance calculation
-    float centered_x[sample_count];
-    float centered_y[sample_count];
-    float centered_z[sample_count];
+    float* centered_x = new float[sample_count];
+    float* centered_y = new float[sample_count];
+    float* centered_z = new float[sample_count];
     
     for (int i = 0; i < sample_count; i++) {
       centered_x[i] = mag_x[i] - calibrationData[unit].mag_offset[0];
@@ -379,6 +379,13 @@ void CalibrationManager::calibrateMagnetometers() {
       cov[1][2] += centered_y[i] * centered_z[i];
       cov[2][2] += centered_z[i] * centered_z[i];
     }
+
+    delete[] mag_x;
+    delete[] mag_y;
+    delete[] mag_z;
+    delete[] centered_x;
+    delete[] centered_y;
+    delete[] centered_z;
     
     // Matrix is symmetric
     cov[1][0] = cov[0][1];
@@ -436,14 +443,6 @@ void CalibrationManager::calibrateMagnetometers() {
     calibrationData[unit].mag_scale[0] = calibrationData[unit].soft_iron_matrix[0][0];
     calibrationData[unit].mag_scale[1] = calibrationData[unit].soft_iron_matrix[1][1];
     calibrationData[unit].mag_scale[2] = calibrationData[unit].soft_iron_matrix[2][2];
-    
-    // Free allocated memory
-    delete[] mag_x;
-    delete[] mag_y;
-    delete[] mag_z;
-    delete[] centered_x;
-    delete[] centered_y;
-    delete[] centered_z;
     
     Serial.println("\nMagnetometer calibration complete for Unit " + String(unit + 1));
     Serial.println("Hard iron offsets (uT):");
