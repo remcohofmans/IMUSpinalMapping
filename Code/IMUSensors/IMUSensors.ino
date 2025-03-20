@@ -29,6 +29,8 @@ unsigned long lastWebUpdateTime = 0;
 const unsigned long WEB_UPDATE_INTERVAL = 1; // 1ms -> 1000Hz update rate
 
 void setup(void) {
+
+  
   Serial.begin(115200); // Initialize serial communication with a baud rate of 115200 bps
   while (!Serial)
     delay(10);

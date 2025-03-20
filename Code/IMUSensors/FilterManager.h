@@ -117,6 +117,11 @@ private:
   float mag_y_buffer[NO_OF_UNITS][FILTER_SAMPLES];
   float mag_z_buffer[NO_OF_UNITS][FILTER_SAMPLES];
   int buffer_index[NO_OF_UNITS];
+  
+  // Buffer initialization flags
+  bool accel_buffer_initialized[NO_OF_UNITS];
+  bool gyro_buffer_initialized[NO_OF_UNITS];
+  bool mag_buffer_initialized[NO_OF_UNITS];
 
   // Axis remapping configuration
   int axisMapping[3] = {0, 1, 2};  // Default mapping: X->X, Y->Y, Z->Z

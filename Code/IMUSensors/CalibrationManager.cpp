@@ -7,20 +7,84 @@
 
 CalibrationManager::CalibrationManager() {
   // Calibration data already initialized with defaults in the struct definition
+
+  // Check initial values set by struct initialization
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "Constructor");
+  }
 }
 
 void CalibrationManager::initialize(SensorManager* sensorMgr) {
   sensorManager = sensorMgr;
+
+  // Check values after initialization
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "Initialize");
+  }
 }
 
 void CalibrationManager::performFullCalibration() {
+  // Check values before starting full calibration
+    for (int i = 0; i < NO_OF_UNITS; i++) {
+      debugGyroScale(i, "Before FullCalibration");
+    }
+
+  // Configure sensors for calibration
+  sensorManager->configureForCalibration();
+  
+  // Perform calibration
   calibrateGyros();
   calibrateAccelerometers();
   calibrateMagnetometers();
   calibrateTemperatures();
+  
+  // 4. Add to the end of performFullCalibration, before configuring back to normal:
+  // Check values after all calibrations
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "After All Calibrations");
+  }
+
+  // Configure sensors back for normal operation
+  sensorManager->configureForNormalOperation();
+}
+
+void CalibrationManager::debugGyroScale(int sensorId, const char* location) {
+  if (sensorId < 0 || sensorId >= NO_OF_UNITS) return;
+  
+  Serial.print("GYRO_SCALE CHECK [");
+  Serial.print(location);
+  Serial.print("] Unit ");
+  Serial.print(sensorId + 1);
+  Serial.print(": [");
+  Serial.print(calibrationData[sensorId].gyro_scale[0], 6);
+  Serial.print(", ");
+  Serial.print(calibrationData[sensorId].gyro_scale[1], 6);
+  Serial.print(", ");
+  Serial.print(calibrationData[sensorId].gyro_scale[2], 6);
+  Serial.println("]");
+  
+  // Check for NaN/Inf values
+  bool hasNaN = false;
+  for (int i = 0; i < 3; i++) {
+    if (isnan(calibrationData[sensorId].gyro_scale[i]) || 
+        isinf(calibrationData[sensorId].gyro_scale[i])) {
+      hasNaN = true;
+      break;
+    }
+  }
+  
+  if (hasNaN) {
+    Serial.print("WARNING: NaN/Inf detected in gyro_scale at ");
+    Serial.println(location);
+  }
 }
 
 void CalibrationManager::calibrateGyros() {
+  // Check values before gyro calibration
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "Before GyroCalibration");
+  }
+
   Serial.println("\n=== Gyroscope Calibration ===");
   Serial.println("Keep the sensor units completely STILL.");
   Serial.println("Starting in 5 seconds...");
@@ -72,9 +136,19 @@ void CalibrationManager::calibrateGyros() {
   }
 
   Serial.println("\nAll gyroscopes have been calibrated!");
+
+  // Check values after gyro calibration
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "After GyroCalibration");
+  }
 }
 
 void CalibrationManager::calibrateAccelerometers() {
+  // Check values before accel calibration
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "Before AccelCalibration");
+  }
+
   Serial.println("\n=== Accelerometer Calibration ===");
   Serial.println("This requires positioning all sensor units in 6 different orientations.");
   Serial.println("You'll be prompted to place all units on each face at the same time.");
@@ -187,15 +261,26 @@ void CalibrationManager::calibrateAccelerometers() {
   }
   
   Serial.println("\nAll accelerometers have been calibrated!");
+
+  // Check values after accel calibration
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "After AccelCalibration");
+  }
 }
 
 void CalibrationManager::calibrateMagnetometers() {
+  // Check values before mag calibration
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "Before MagCalibration");
+  }
+
   Serial.println("\n=== Magnetometer Calibration ===");
   Serial.println("We'll calibrate each sensor unit one by one.");
   Serial.println("For each unit, rotate it slowly in all directions to sample the complete 3D magnetic field.");
   Serial.println("Try to cover all possible orientations in a figure-8 pattern.");
   
   for (int unit = 0; unit < NO_OF_UNITS; unit++) {
+    debugGyroScale(unit, "Before MagCalibration");
     if (!sensorManager->isSensorActive(unit)) continue;
     
     Serial.println("\n=== Calibrating Unit " + String(unit + 1) + " Magnetometer ===");
@@ -211,9 +296,9 @@ void CalibrationManager::calibrateMagnetometers() {
     
     // Collect samples for ellipsoid fitting
     const int max_samples = 500;
-    float* mag_x = new float[max_samples];
-    float* mag_y = new float[max_samples];
-    float* mag_z = new float[max_samples];
+    float mag_x[max_samples];
+    float mag_y[max_samples];
+    float mag_z[max_samples];
     int sample_count = 0;
     bool done = false;
     
@@ -273,9 +358,9 @@ void CalibrationManager::calibrateMagnetometers() {
     calibrationData[unit].mag_offset[2] = (min_z + max_z) / 2.0f;
     
     // Create centered data for covariance calculation
-    float* centered_x = new float[sample_count];
-    float* centered_y = new float[sample_count];
-    float* centered_z = new float[sample_count];
+    float centered_x[sample_count];
+    float centered_y[sample_count];
+    float centered_z[sample_count];
     
     for (int i = 0; i < sample_count; i++) {
       centered_x[i] = mag_x[i] - calibrationData[unit].mag_offset[0];
@@ -392,6 +477,10 @@ void CalibrationManager::calibrateMagnetometers() {
 
   Serial.println("\nAll magnetometers have been calibrated!");
   Serial.println("Note: Magnetic declination is not accounted for. For accurate heading, apply your local magnetic declination correction.");
+
+  for (int i = 0; i < NO_OF_UNITS; i++) {
+    debugGyroScale(i, "After MagCalibration");
+  }
 }
 
 void CalibrationManager::eigenDecomposition(float cov[3][3], float eigenvalues[3], float eigenvectors[3][3]) {
@@ -521,56 +610,13 @@ void CalibrationManager::calibrateAccelData(int sensorId, float raw_x, float raw
     return;
   }
   
-  // Print raw input values
-  Serial.print("CALIBRATION DEBUG - Sensor ");
-  Serial.print(sensorId);
-  Serial.print(" Raw Accel: X=");
-  Serial.print(raw_x, 4);
-  Serial.print(" Y=");
-  Serial.print(raw_y, 4);
-  Serial.print(" Z=");
-  Serial.println(raw_z, 4);
-  
-  // Print calibration values
-  Serial.print("CALIBRATION DEBUG - Sensor ");
-  Serial.print(sensorId);
-  Serial.print(" Accel Offsets: X=");
-  Serial.print(calibrationData[sensorId].accel_offset[0], 4);
-  Serial.print(" Y=");
-  Serial.print(calibrationData[sensorId].accel_offset[1], 4);
-  Serial.print(" Z=");
-  Serial.println(calibrationData[sensorId].accel_offset[2], 4);
-  
-  Serial.print("CALIBRATION DEBUG - Sensor ");
-  Serial.print(sensorId);
-  Serial.print(" Accel Scales: X=");
-  Serial.print(calibrationData[sensorId].accel_scale[0], 4);
-  Serial.print(" Y=");
-  Serial.print(calibrationData[sensorId].accel_scale[1], 4);
-  Serial.print(" Z=");
-  Serial.println(calibrationData[sensorId].accel_scale[2], 4);
-  
   // Apply temperature compensation
   float temp_comp_x = compensateForTemperature(raw_x, calibrationData[sensorId].temp_coef_accel[0], temp, calibrationData[sensorId].temp_ref);
   float temp_comp_y = compensateForTemperature(raw_y, calibrationData[sensorId].temp_coef_accel[1], temp, calibrationData[sensorId].temp_ref);
   float temp_comp_z = compensateForTemperature(raw_z, calibrationData[sensorId].temp_coef_accel[2], temp, calibrationData[sensorId].temp_ref);
   
-  // Print after temperature compensation
-  Serial.print("CALIBRATION DEBUG - After temp comp: X=");
-  Serial.print(temp_comp_x, 4);
-  Serial.print(" Y=");
-  Serial.print(temp_comp_y, 4);
-  Serial.print(" Z=");
-  Serial.println(temp_comp_z, 4);
-  
   // Apply offset and scale calibration
   cal_x = (temp_comp_x - calibrationData[sensorId].accel_offset[0]) * calibrationData[sensorId].accel_scale[0];
-  
-  // Print after offset application
-  Serial.print("CALIBRATION DEBUG - After offset: X=");
-  Serial.print((temp_comp_x - calibrationData[sensorId].accel_offset[0]), 4);
-  Serial.print(" After scale: X=");
-  Serial.println(cal_x, 4);
   
   cal_y = (temp_comp_y - calibrationData[sensorId].accel_offset[1]) * calibrationData[sensorId].accel_scale[1];
   cal_z = (temp_comp_z - calibrationData[sensorId].accel_offset[2]) * calibrationData[sensorId].accel_scale[2];
@@ -578,6 +624,8 @@ void CalibrationManager::calibrateAccelData(int sensorId, float raw_x, float raw
 
 void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_y, float raw_z, 
                                         float temp, float &cal_x, float &cal_y, float &cal_z) {
+  debugGyroScale(sensorId, "Before Using GyroData");
+
   if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) {
     cal_x = raw_x;
     cal_y = raw_y;
@@ -585,15 +633,101 @@ void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_
     return;
   }
   
+  // Debug: check raw inputs
+  if (sensorId == 1) {
+    Serial.println("Gyro Debug for Sensor 2 - Raw inputs:");
+    Serial.print("raw_x: "); Serial.print(raw_x, 6);
+    Serial.print(", raw_y: "); Serial.print(raw_y, 6);
+    Serial.print(", raw_z: "); Serial.print(raw_z, 6);
+    Serial.print(", temp: "); Serial.println(temp, 6);
+    
+    Serial.print("Offsets: ");
+    Serial.print(calibrationData[sensorId].gyro_offset[0], 6);
+    Serial.print(", ");
+    Serial.print(calibrationData[sensorId].gyro_offset[1], 6);
+    Serial.print(", ");
+    Serial.println(calibrationData[sensorId].gyro_offset[2], 6);
+    
+    Serial.print("Temp coefficients: ");
+    Serial.print(calibrationData[sensorId].temp_coef_gyro[0], 6);
+    Serial.print(", ");
+    Serial.print(calibrationData[sensorId].temp_coef_gyro[1], 6);
+    Serial.print(", ");
+    Serial.println(calibrationData[sensorId].temp_coef_gyro[2], 6);
+    
+    Serial.print("Temp reference: ");
+    Serial.println(calibrationData[sensorId].temp_ref, 6);
+  }
+  
   // Apply temperature compensation
   float temp_comp_x = compensateForTemperature(raw_x, calibrationData[sensorId].temp_coef_gyro[0], temp, calibrationData[sensorId].temp_ref);
   float temp_comp_y = compensateForTemperature(raw_y, calibrationData[sensorId].temp_coef_gyro[1], temp, calibrationData[sensorId].temp_ref);
   float temp_comp_z = compensateForTemperature(raw_z, calibrationData[sensorId].temp_coef_gyro[2], temp, calibrationData[sensorId].temp_ref);
   
-  // Apply offset and scale calibration
-  cal_x = (temp_comp_x - calibrationData[sensorId].gyro_offset[0]) * calibrationData[sensorId].gyro_scale[0];
-  cal_y = (temp_comp_y - calibrationData[sensorId].gyro_offset[1]) * calibrationData[sensorId].gyro_scale[1];
-  cal_z = (temp_comp_z - calibrationData[sensorId].gyro_offset[2]) * calibrationData[sensorId].gyro_scale[2];
+  // Debug: check after temperature compensation
+  if (sensorId == 1) {
+    Serial.println("After temperature compensation:");
+    Serial.print("temp_comp_x: "); Serial.print(temp_comp_x, 6);
+    Serial.print(", temp_comp_y: "); Serial.print(temp_comp_y, 6);
+    Serial.print(", temp_comp_z: "); Serial.println(temp_comp_z, 6);
+    
+    if (isnan(temp_comp_x) || isnan(temp_comp_y) || isnan(temp_comp_z)) {
+      Serial.println("NaN detected after temperature compensation!");
+    }
+  }
+  
+  // Calculate with offsets
+  float offset_x = temp_comp_x - calibrationData[sensorId].gyro_offset[0];
+  float offset_y = temp_comp_y - calibrationData[sensorId].gyro_offset[1];
+  float offset_z = temp_comp_z - calibrationData[sensorId].gyro_offset[2];
+  
+  // Debug: check after offset application
+  if (sensorId == 1) {
+    Serial.println("After offset application:");
+    Serial.print("offset_x: "); Serial.print(offset_x, 6);
+    Serial.print(", offset_y: "); Serial.print(offset_y, 6);
+    Serial.print(", offset_z: "); Serial.println(offset_z, 6);
+    
+    if (isnan(offset_x) || isnan(offset_y) || isnan(offset_z)) {
+      Serial.println("NaN detected after offset application!");
+    }
+  }
+  
+  // Apply scale 
+  cal_x = offset_x * calibrationData[sensorId].gyro_scale[0];
+  cal_y = offset_y * calibrationData[sensorId].gyro_scale[1];
+  cal_z = offset_z * calibrationData[sensorId].gyro_scale[2];
+  
+  // Debug: check after scale application
+  if (sensorId == 1) {
+    Serial.print("Scale factors: ");
+    Serial.print(calibrationData[sensorId].gyro_scale[0], 6);
+    Serial.print(", ");
+    Serial.print(calibrationData[sensorId].gyro_scale[1], 6);
+    Serial.print(", ");
+    Serial.println(calibrationData[sensorId].gyro_scale[2], 6);
+    
+    Serial.println("After scale application (final values):");
+    Serial.print("cal_x: "); Serial.print(cal_x, 6);
+    Serial.print(", cal_y: "); Serial.print(cal_y, 6);
+    Serial.print(", cal_z: "); Serial.println(cal_z, 6);
+    
+    if (isnan(cal_x) || isnan(cal_y) || isnan(cal_z)) {
+      Serial.println("NaN detected after scale application!");
+    }
+  }
+  
+  // Safety check (temporary fix)
+  if (isnan(cal_x) || isnan(cal_y) || isnan(cal_z)) {
+    // Use raw values as fallback
+    cal_x = raw_x;
+    cal_y = raw_y;
+    cal_z = raw_z;
+    
+    if (sensorId == 1) {
+      Serial.println("Using raw values as fallback for Sensor 2 gyro");
+    }
+  }
 }
 
 void CalibrationManager::calibrateMagData(int sensorId, float raw_x, float raw_y, float raw_z, 
@@ -622,6 +756,17 @@ void CalibrationManager::calibrateMagData(int sensorId, float raw_x, float raw_y
   cal_z = calibrationData[sensorId].soft_iron_matrix[2][0] * offset_cal_x + 
           calibrationData[sensorId].soft_iron_matrix[2][1] * offset_cal_y + 
           calibrationData[sensorId].soft_iron_matrix[2][2] * offset_cal_z;
+
+  // Add safety check at the end
+  if (isnan(cal_x) || isnan(cal_y) || isnan(cal_z)) {
+    cal_x = raw_x;
+    cal_y = raw_y;
+    cal_z = raw_z;
+    
+    if (sensorId == 1) {
+      Serial.println("Using raw values as fallback for Sensor mag");
+    }
+  }
 }
 
 void CalibrationManager::printCalibrationData() {
@@ -648,6 +793,12 @@ void CalibrationManager::printCalibrationData() {
     Serial.print("X: "); Serial.print(calibrationData[unit].gyro_offset[0], 6);
     Serial.print(" Y: "); Serial.print(calibrationData[unit].gyro_offset[1], 6);
     Serial.print(" Z: "); Serial.print(calibrationData[unit].gyro_offset[2], 6);
+    Serial.println();
+    
+    Serial.println("Gyroscope scale factors:");
+    Serial.print("X: "); Serial.print(calibrationData[unit].gyro_scale[0], 6);
+    Serial.print(" Y: "); Serial.print(calibrationData[unit].gyro_scale[1], 6);
+    Serial.print(" Z: "); Serial.print(calibrationData[unit].gyro_scale[2], 6);
     Serial.println();
     
     Serial.println("Magnetometer hard iron offsets (uT):");

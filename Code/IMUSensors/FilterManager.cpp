@@ -13,7 +13,7 @@ FilterManager::FilterManager() :
   anatomicalConstraintsEnabled(false),
   useQuaternions(false) {
   
-  // Initialize buffers to zero
+  // Initialize buffers to zero and tracking flags to false
   for (int i = 0; i < NO_OF_UNITS; i++) {
     for (int j = 0; j < FILTER_SAMPLES; j++) {
       accel_x_buffer[i][j] = 0;
@@ -27,6 +27,11 @@ FilterManager::FilterManager() :
       mag_z_buffer[i][j] = 0;
     }
     buffer_index[i] = 0;
+    
+    // Initialize buffer status flags to false
+    accel_buffer_initialized[i] = false;
+    gyro_buffer_initialized[i] = false;
+    mag_buffer_initialized[i] = false;
     
     // Initialize complementary filter variables
     euler_angles[i].roll = 0;
@@ -59,37 +64,37 @@ void FilterManager::initializeFilters() {
     // Accelerometer Kalman filters
     kalman_accel_x[i].x = 0;
     kalman_accel_x[i].p = 1;
-    kalman_accel_x[i].q = 0.01;
-    kalman_accel_x[i].r = 0.1;
+    kalman_accel_x[i].q = 0.0001;
+    kalman_accel_x[i].r = 0.001;
     
     kalman_accel_y[i].x = 0;
     kalman_accel_y[i].p = 1;
-    kalman_accel_y[i].q = 0.01;
-    kalman_accel_y[i].r = 0.1;
+    kalman_accel_y[i].q = 0.0001;
+    kalman_accel_y[i].r = 0.001;
     
     kalman_accel_z[i].x = 0;
     kalman_accel_z[i].p = 1;
-    kalman_accel_z[i].q = 0.01;
-    kalman_accel_z[i].r = 0.1;
+    kalman_accel_z[i].q = 0.0001;
+    kalman_accel_z[i].r = 0.001;
     
     // Gyroscope Kalman filters - configured for spine movements
     // X-axis rotation rate - Axial Rotation
     kalman_gyro_x[i].x = 0;
     kalman_gyro_x[i].p = 1;
-    kalman_gyro_x[i].q = 0.0006;  // Higher restriction axial rotation
-    kalman_gyro_x[i].r = 0.035;   // Slightly increased measurement noise
+    kalman_gyro_x[i].q = 0.0001;  // Higher restriction axial rotation
+    kalman_gyro_x[i].r = 0.001;   // Slightly increased measurement noise
     
     // Y-axis rotation rate - Flexion/Extension
     kalman_gyro_y[i].x = 0;
     kalman_gyro_y[i].p = 1;
-    kalman_gyro_y[i].q = 0.0009;  // Lower restriction for flexion/extension
-    kalman_gyro_y[i].r = 0.03;    // Standard measurement noise
+    kalman_gyro_y[i].q = 0.001;  // Lower restriction for flexion/extension
+    kalman_gyro_y[i].r = 0.001;    // Standard measurement noise
     
     // Z-axis rotation rate - Lateral Bending
     kalman_gyro_z[i].x = 0;
     kalman_gyro_z[i].p = 1;
-    kalman_gyro_z[i].q = 0.0007;  // Moderate restriction for lateral bending
-    kalman_gyro_z[i].r = 0.03;    // Standard measurement noise
+    kalman_gyro_z[i].q = 0.001;  // Moderate restriction for lateral bending
+    kalman_gyro_z[i].r = 0.001;    // Standard measurement noise
   }
 }
 
@@ -320,31 +325,6 @@ void FilterManager::processAllSensors() {
     calibrationManager->transformSensorAxes(sensorId, accel_x, accel_y, accel_z, axisMapping, axisSigns);
     calibrationManager->transformSensorAxes(sensorId, gyro_x, gyro_y, gyro_z, axisMapping, axisSigns);
     calibrationManager->transformSensorAxes(sensorId, mag_x, mag_y, mag_z, axisMapping, axisSigns);                                         
-    
-    Serial.println("=== Raw Sensor Data for Sensor " + String(sensorId) + " ===");
-    Serial.print("Raw Accelerometer (m/s²): X=");
-    Serial.print(accel_x, 4);
-    Serial.print(", Y=");
-    Serial.print(accel_y, 4);
-    Serial.print(", Z=");
-    Serial.println(accel_z, 4);
-
-    Serial.print("Raw Gyroscope (rad/s): X=");
-    Serial.print(gyro_x, 4);
-    Serial.print(", Y=");
-    Serial.print(gyro_y, 4);
-    Serial.print(", Z=");
-    Serial.println(gyro_z, 4);
-
-    Serial.print("Raw Magnetometer (uT): X=");
-    Serial.print(mag_x, 4);
-    Serial.print(", Y=");
-    Serial.print(mag_y, 4);
-    Serial.print(", Z=");
-    Serial.println(mag_z, 4);
-
-    Serial.print("Temperature (°C): ");
-    Serial.println(temperature, 2);
 
     // Apply calibration
     float cal_accel_x, cal_accel_y, cal_accel_z;
@@ -370,9 +350,22 @@ void FilterManager::processAllSensors() {
       cal_mag_y = mag_y;
       cal_mag_z = mag_z;
     }
-    
-    Serial.println("--------------- BEFORE MOVING AVG & AFTER CALIBRATING ---------------");
-    
+
+    static bool buffer_initialized[NO_OF_UNITS] = {false};
+
+    if (!buffer_initialized[sensorId]) {
+      // Initialize all buffers for this sensor with current values
+      for (int i = 0; i < FILTER_SAMPLES; i++) {
+        accel_x_buffer[sensorId][i] = cal_accel_x;
+        accel_y_buffer[sensorId][i] = cal_accel_y;
+        accel_z_buffer[sensorId][i] = cal_accel_z;
+        mag_x_buffer[sensorId][i] = cal_mag_x;
+        mag_y_buffer[sensorId][i] = cal_mag_y;
+        mag_z_buffer[sensorId][i] = cal_mag_z;
+      }
+      buffer_initialized[sensorId] = true;
+    }
+        
     // Apply Moving Average filter
     float ma_accel_x = applyMovingAverage(cal_accel_x, accel_x_buffer[sensorId], buffer_index[sensorId]);
     float ma_accel_y = applyMovingAverage(cal_accel_y, accel_y_buffer[sensorId], buffer_index[sensorId]);
@@ -386,11 +379,6 @@ void FilterManager::processAllSensors() {
     float ma_gyro_y = cal_gyro_y;
     float ma_gyro_z = cal_gyro_z;
     
-    Serial.println("--------------- BEFORE KALMAN, AFTER MOVING AVG ---------------");
-
-    Serial.print("ma_accel_x: "); Serial.println(ma_accel_x, 2);
-    Serial.print("ma_accel_y: "); Serial.println(ma_accel_y, 2);
-
     // Apply Kalman filter
     filteredData[sensorId].accel[0] = applyKalmanFilter(ma_accel_x, kalman_accel_x[sensorId]);
     filteredData[sensorId].accel[1] = applyKalmanFilter(ma_accel_y, kalman_accel_y[sensorId]);

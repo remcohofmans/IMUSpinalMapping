@@ -71,6 +71,8 @@ private:
   SensorManager* sensorManager;
   FilterManager* filterManager;
   CalibrationData calibrationData[NO_OF_UNITS];
+
+  void debugGyroScale(int sensorId, const char* location);
   
   // Helper function for temperature compensation
   float compensateForTemperature(float value, float temp_coef, float temp, float temp_ref);
