@@ -302,7 +302,7 @@ void FilterManager::processAllSensors() {
     if (!sensorManager->isSensorActive(sensorId)) continue;
 
     unsigned long currentTime = millis();
-    float dt = (currentTime - sensorManager->getReadingTimestamp(sensorId)) / 1000.0f;
+    float dt = (sensorManager->getReadingTimestamp(sensorId) - lastTime) / 1000.0f;
     lastTime = currentTime;
     // Prevent large time jumps
     if (dt > 0.2f) dt = 0.2f;
@@ -322,9 +322,9 @@ void FilterManager::processAllSensors() {
     temperature = sensorManager->getTemperature(sensorId);
 
     // Apply axis mapping transformation
-    calibrationManager->transformSensorAxes(sensorId, accel_x, accel_y, accel_z, axisMapping, axisSigns);
-    calibrationManager->transformSensorAxes(sensorId, gyro_x, gyro_y, gyro_z, axisMapping, axisSigns);
-    calibrationManager->transformSensorAxes(sensorId, mag_x, mag_y, mag_z, axisMapping, axisSigns);                                         
+    // calibrationManager->transformSensorAxes(accel_x, accel_y, accel_z, axisMapping, axisSigns);
+    // calibrationManager->transformSensorAxes(gyro_x, gyro_y, gyro_z, axisMapping, axisSigns);
+    // calibrationManager->transformSensorAxes(mag_x, mag_y, mag_z, axisMapping, axisSigns);                                         
 
     // Apply calibration
     float cal_accel_x, cal_accel_y, cal_accel_z;
@@ -339,7 +339,7 @@ void FilterManager::processAllSensors() {
       calibrationManager->calibrateMagData(sensorId, mag_x, mag_y, mag_z, 
                                          cal_mag_x, cal_mag_y, cal_mag_z);
     } else {
-      // No calibration manager, use raw values
+      // If no calibration manager, use raw values
       cal_accel_x = accel_x;
       cal_accel_y = accel_y;
       cal_accel_z = accel_z;
@@ -350,6 +350,12 @@ void FilterManager::processAllSensors() {
       cal_mag_y = mag_y;
       cal_mag_z = mag_z;
     }
+
+    Serial.println("DEBUG Mag before/after filtering:");
+    Serial.print("Before: X="); Serial.print(cal_mag_x, 6);
+    Serial.print(", Y="); Serial.print(cal_mag_y, 6);
+    Serial.print(", Z="); Serial.print(cal_mag_z, 6);
+    Serial.println();
 
     static bool buffer_initialized[NO_OF_UNITS] = {false};
 
@@ -394,6 +400,12 @@ void FilterManager::processAllSensors() {
     
     // Detect magnetic disturbances
     detectMagneticDisturbance(sensorId, ma_mag_x, ma_mag_y, ma_mag_z);
+
+    // After filtering:
+    Serial.print("After: X="); Serial.print(filteredData[sensorId].mag[0], 6);
+    Serial.print(", Y="); Serial.print(filteredData[sensorId].mag[1], 6);
+    Serial.print(", Z="); Serial.print(filteredData[sensorId].mag[2], 6);
+    Serial.println();
     
     // Apply sensor fusion algorithm
     if (useQuaternions) {
@@ -428,12 +440,27 @@ void FilterManager::detectMagneticDisturbance(int sensorId, float mag_x, float m
   
   // Gradually update reference magnitude with a low-pass filter
   // This allows adaptation to slowly changing environments
-  if (!magDisturbance[sensorId]) {
+  if (!magDisturbance[sensorId]) {  
     lastMagMagnitude[sensorId] = 0.95f * lastMagMagnitude[sensorId] + 0.05f * magMagnitude;
   }
+  // When a disturbance is detected, the current magnetic reading is considered unreliable or abnormal
+  // By not updating the reference value during a disturbance, the system preserves the last known "good" reference value 
+  // (allows for faster recovery when disturbance ends)
 }
 
 void FilterManager::updateEulerAngles(int sensorId, float dt) {
+
+  Serial.println("DEBUG updateEulerAngles for Sensor " + String(sensorId));
+  Serial.print("Axis mapping: [");
+  Serial.print(axisMapping[0]); Serial.print(", ");
+  Serial.print(axisMapping[1]); Serial.print(", ");
+  Serial.print(axisMapping[2]); Serial.println("]");
+
+  Serial.print("Axis signs: [");
+  Serial.print(axisSigns[0]); Serial.print(", ");
+  Serial.print(axisSigns[1]); Serial.print(", ");
+  Serial.print(axisSigns[2]); Serial.println("]");
+
   // Get filtered sensor data
   float accel_x = filteredData[sensorId].accel[0];
   float accel_y = filteredData[sensorId].accel[1];
@@ -462,12 +489,13 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   // Adapt the calculation based on your preferred orientation
   if (axisMapping[0] == 0) {
     // Default configuration
-    accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
-    accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;
+    euler_angles[sensorId].pitch = accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
+    euler_angles[sensorId].yaw = accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;
   } else if (axisMapping[0] == 2) {
     // X-axis down configuration
-    accel_pitch = atan2(accel_z, sqrt(accel_y*accel_y + accel_x*accel_x)) * 180.0f / M_PI;
-    accel_yaw = atan2(accel_y, accel_z) * 180.0f / M_PI;
+    Serial.println("AM HERE");
+    euler_angles[sensorId].pitch = accel_pitch = atan2(accel_z, sqrt(accel_y*accel_y + accel_x*accel_x)) * 180.0f / M_PI;
+    euler_angles[sensorId].yaw = accel_yaw = atan2(accel_y, accel_z) * 180.0f / M_PI;
   } else {
     // Other configurations
     accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;

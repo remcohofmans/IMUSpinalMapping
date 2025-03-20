@@ -97,7 +97,7 @@ void setup(void) {
   }
   
   // For vertical orientation with X pointing down:
-  filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
+  // filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
     
   // Initialize and start web server to serve data over HTTP and WebSockets to the browser client
   if (webServer.initialize(ssid, password, "esp32-imu")) {

@@ -59,7 +59,7 @@ public:
   // Utility functions
   void printCalibrationData();
 
-  void transformSensorAxes(int sensorId, float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]);
+  void transformSensorAxes(float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]);
   
   // Access calibration data (for storage)
   CalibrationData* getCalibrationData(int sensorId);
@@ -71,9 +71,7 @@ private:
   SensorManager* sensorManager;
   FilterManager* filterManager;
   CalibrationData calibrationData[NO_OF_UNITS];
-
-  void debugGyroScale(int sensorId, const char* location);
-  
+    
   // Helper function for temperature compensation
   float compensateForTemperature(float value, float temp_coef, float temp, float temp_ref);
   
