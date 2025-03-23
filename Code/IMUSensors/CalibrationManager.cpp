@@ -575,17 +575,10 @@ void CalibrationManager::calibrateAccelData(int sensorId, float raw_x, float raw
 void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_y, float raw_z, 
                                         float temp, float &cal_x, float &cal_y, float &cal_z) {
 
-  Serial.println("DEBUG calibrateGyroData for Sensor " + String(sensorId));
-  Serial.print("raw_x="); Serial.print(raw_x, 6);
-  Serial.print(", raw_y="); Serial.print(raw_y, 6);
-  Serial.print(", raw_z="); Serial.print(raw_z, 6);
-  Serial.print(", temp="); Serial.println(temp, 6);
-
   if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) {
     cal_x = raw_x;
     cal_y = raw_y;
     cal_z = raw_z;
-    Serial.println("ERROR: Invalid sensor ID or inactive sensor");
     return;
   }
   
@@ -594,44 +587,15 @@ void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_
   float temp_comp_y = compensateForTemperature(raw_y, calibrationData[sensorId].temp_coef_gyro[1], temp, calibrationData[sensorId].temp_ref);
   float temp_comp_z = compensateForTemperature(raw_z, calibrationData[sensorId].temp_coef_gyro[2], temp, calibrationData[sensorId].temp_ref);
   
-  // NEW DEBUG CODE - Add this
-  Serial.print("After temp compensation: temp_comp_x="); Serial.print(temp_comp_x, 6);
-  Serial.print(", temp_comp_y="); Serial.print(temp_comp_y, 6);
-  Serial.print(", temp_comp_z="); Serial.print(temp_comp_z, 6);
-  Serial.println();
-  
   // Calculate with offsets
   float offset_x = temp_comp_x - calibrationData[sensorId].gyro_offset[0];
   float offset_y = temp_comp_y - calibrationData[sensorId].gyro_offset[1];
   float offset_z = temp_comp_z - calibrationData[sensorId].gyro_offset[2];
   
-  // NEW DEBUG CODE - Add this
-  Serial.print("After offset: offset_x="); Serial.print(offset_x, 6);
-  Serial.print(", offset_y="); Serial.print(offset_y, 6);
-  Serial.print(", offset_z="); Serial.print(offset_z, 6);
-  Serial.println();
-  
   // Apply scale 
   cal_x = offset_x * calibrationData[sensorId].gyro_scale[0];
   cal_y = offset_y * calibrationData[sensorId].gyro_scale[1];
   cal_z = offset_z * calibrationData[sensorId].gyro_scale[2];
-
-  // After getting calibration data
-  Serial.print("gyro_offset[0]="); Serial.print(calibrationData[sensorId].gyro_offset[0], 6);
-  Serial.print(", gyro_offset[1]="); Serial.print(calibrationData[sensorId].gyro_offset[1], 6);
-  Serial.print(", gyro_offset[2]="); Serial.print(calibrationData[sensorId].gyro_offset[2], 6);
-  Serial.println();
-
-  Serial.print("gyro_scale[0]="); Serial.print(calibrationData[sensorId].gyro_scale[0], 6);
-  Serial.print(", gyro_scale[1]="); Serial.print(calibrationData[sensorId].gyro_scale[1], 6);
-  Serial.print(", gyro_scale[2]="); Serial.print(calibrationData[sensorId].gyro_scale[2], 6);
-  Serial.println();
-  
-  // NEW DEBUG CODE - Add this
-  Serial.print("FINAL Calibrated: cal_x="); Serial.print(cal_x, 6);
-  Serial.print(", cal_y="); Serial.print(cal_y, 6);
-  Serial.print(", cal_z="); Serial.print(cal_z, 6);
-  Serial.println();
 }
 
 void CalibrationManager::calibrateMagData(int sensorId, float raw_x, float raw_y, float raw_z, 

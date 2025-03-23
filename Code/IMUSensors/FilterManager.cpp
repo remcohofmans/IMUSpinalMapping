@@ -61,19 +61,20 @@ void FilterManager::initializeFilters() {
 
     // Kalman filters
     // Accelerometer
-    kalman_accel_x[i] = {0, 1, 0.0001f, 0.001f, 0};
-    kalman_accel_y[i] = {0, 1, 0.0001f, 0.001f, 0};
-    kalman_accel_z[i] = {0, 1, 0.0001f, 0.001f, 0};
+    // Accelerometer - balance between stability and responsiveness
+      kalman_accel_x[i] = {0, 1, 0.0002f, 0.001f, 0};
+      kalman_accel_y[i] = {0, 1, 0.0002f, 0.001f, 0};
+      kalman_accel_z[i] = {0, 1, 0.0002f, 0.001f, 0};
 
-    // Gyroscope (spine-optimized)
-    kalman_gyro_x[i] = {0, 1, 0.0001f, 0.001f, 0};  // Axial rotation
-    kalman_gyro_y[i] = {0, 1, 0.001f, 0.001f, 0};   // Flexion/Extension
-    kalman_gyro_z[i] = {0, 1, 0.001f, 0.001f, 0};   // Lateral Bending
+      // Gyroscope - spine-specific optimizations
+      kalman_gyro_x[i] = {0, 1, 0.00005f, 0.0005f, 0};  // Axial rotation - more precision
+      kalman_gyro_y[i] = {0, 1, 0.0002f, 0.0008f, 0};   // Flexion/Extension - more responsiveness
+      kalman_gyro_z[i] = {0, 1, 0.0001f, 0.0008f, 0};   // Lateral Bending - balanced
 
-    // Magnetometer
-    kalman_mag_x[i] = {0, 1, 0.0001f, 0.001f, 0};
-    kalman_mag_y[i] = {0, 1, 0.0001f, 0.001f, 0};
-    kalman_mag_z[i] = {0, 1, 0.0001f, 0.001f, 0};
+      // Magnetometer - less critical for relative spine movement
+      kalman_mag_x[i] = {0, 1, 0.0001f, 0.002f, 0};
+      kalman_mag_y[i] = {0, 1, 0.0001f, 0.002f, 0};
+      kalman_mag_z[i] = {0, 1, 0.0001f, 0.002f, 0};
 
     // Initialize Euler angles from first sensor reading    
     // First get raw sensor data
@@ -126,10 +127,16 @@ void FilterManager::initializeFilters() {
 
     // Normalize accel
     float accel_mag = sqrt(c_ax * c_ax + c_ay * c_ay + c_az * c_az);
-    if (accel_mag > 0.001f) {
+    float EPSILON = 0.01f;
+    if (accel_mag > EPSILON) {
       c_ax /= accel_mag;
       c_ay /= accel_mag;
       c_az /= accel_mag;
+    } else {
+      // Default gravity direction if accelerometer reading is invalid
+      c_ax = 0.0f;
+      c_ay = 0.0f;
+      c_az = 1.0f;
     }
 
     // Calculate initial pitch and roll using the aircraft formulas
@@ -144,11 +151,11 @@ void FilterManager::initializeFilters() {
     // Calculate roll as rotation between Y and Z axes
     // Note: This calculation becomes unstable when pitch approaches ±90°!
     // due to gimbal lock inherent in Euler angle representations
-    initial.roll = atan2(c_ay, c_az) * 180.0f / M_PI;
+    initial.roll = atan2(c_ay, c_az) * DEG_TO_RAD;
 
     // Tilt-compensated magnetometer yaw
-    float pitch_rad = initial.pitch * M_PI / 180.0f;
-    float roll_rad = initial.roll * M_PI / 180.0f;
+    float pitch_rad = initial.pitch * DEG_TO_RAD;
+    float roll_rad = initial.roll * DEG_TO_RAD;
 
     float cos_pitch = cos(pitch_rad);
     float sin_pitch = sin(pitch_rad);
@@ -164,17 +171,22 @@ void FilterManager::initializeFilters() {
       c_mx /= mag_norm;
       c_my /= mag_norm;
       c_mz /= mag_norm;
+    } else {
+      // Default to north if magnetometer reading is invalid
+      c_mx = 1.0f;
+      c_my = 0.0f;
+      c_mz = 0.0f;
     }
 
     // Apply tilt compensation to project magnetic field vector onto horizontal plane
     // First, rotate around X-axis (roll) and then around Y-axis (pitch)
     // This transforms magnetometer readings as if the device were perfectly horizontal
-    float mx_h = c_mx * cos_pitch + c_my * sin_roll * sin_pitch + c_mz * cos_roll * sin_pitch;
-    float my_h = c_my * cos_roll - c_mz * sin_roll;
+    float mx_h = c_mx * cos_pitch + c_mz * sin_pitch;
+    float my_h = c_mx * sin_roll * sin_pitch + c_my * cos_roll - c_mz * sin_roll * cos_pitch;
 
     // Calculate heading (yaw) using the horizontally projected magnetic field components
     // The magnetic declination adjusts for difference between magnetic and true geographic north
-    initial.yaw = atan2(my_h, mx_h) * 180.0f / M_PI + MAGNETIC_DECLINATION;
+    initial.yaw = atan2(-my_h, mx_h) * RAD_TO_DEG + MAGNETIC_DECLINATION;
     initial.yaw = fmod((initial.yaw + 360.0f), 360.0f); // Yaw angle between 0 and 360 degrees -> standard compass convention
 
     euler_angles[i] = initial;
@@ -198,16 +210,21 @@ float FilterManager::applyMovingAverage(float new_value, float buffer[], int &bu
   // Add new value to buffer
   buffer[buffer_idx] = new_value;
   
-  // Calculate average
+  // Use weighted average with newer values weighted more heavily
   float sum = 0;
-  for (int i = 0; i < 3; i++) {
-    sum += buffer[i];
+  float weight_sum = 0;
+  const float weights[FILTER_SAMPLES] = {0.05, 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.15, 0.25}; // Newest value has the highest weight
+  
+  for (int i = 0; i < FILTER_SAMPLES; i++) {
+    int idx = (buffer_idx - i + FILTER_SAMPLES) % FILTER_SAMPLES;
+    sum += buffer[idx] * weights[i];
+    weight_sum += weights[i];
   }
   
   // Advance buffer index with wraparound
   buffer_idx = (buffer_idx + 1) % FILTER_SAMPLES;
   
-  return sum / FILTER_SAMPLES;
+  return sum / weight_sum;
 }
 
 float FilterManager::applyKalmanFilter(float measurement, KalmanState &state) {
@@ -420,9 +437,9 @@ void FilterManager::processAllSensors() {
     float fgy = applyKalmanFilter(cal_gy, kalman_gyro_y[sensorId]);
     float fgz = applyKalmanFilter(cal_gz, kalman_gyro_z[sensorId]);
 
-    float fmx = applyKalmanFilter(applyMovingAverage(cal_mx, mag_x_buffer[sensorId], buffer_index[sensorId]), kalman_mag_x[sensorId]);
-    float fmy = applyKalmanFilter(applyMovingAverage(cal_my, mag_y_buffer[sensorId], buffer_index[sensorId]), kalman_mag_y[sensorId]);
-    float fmz = applyKalmanFilter(applyMovingAverage(cal_mz, mag_z_buffer[sensorId], buffer_index[sensorId]), kalman_mag_z[sensorId]);
+    float fmx = applyKalmanFilter(cal_mx, kalman_mag_x[sensorId]);
+    float fmy = applyKalmanFilter(cal_my, kalman_mag_y[sensorId]);
+    float fmz = applyKalmanFilter(cal_mz, kalman_mag_z[sensorId]);
 
     filteredData[sensorId].accel[0] = fa_x;
     filteredData[sensorId].accel[1] = fa_y;
@@ -472,7 +489,7 @@ void FilterManager::detectMagneticDisturbance(int sensorId, float mag_x, float m
   }
   
   // Check for substantial change in magnitude, which indicates disturbance
-  const float DISTURBANCE_THRESHOLD = 0.15f; // 15% change
+  const float DISTURBANCE_THRESHOLD = 0.20f; // 20% change
   float percentChange = fabsf(magMagnitude - lastMagMagnitude[sensorId]) / lastMagMagnitude[sensorId];
   
   magDisturbance[sensorId] = (percentChange > DISTURBANCE_THRESHOLD);
@@ -480,111 +497,137 @@ void FilterManager::detectMagneticDisturbance(int sensorId, float mag_x, float m
   // Gradually update reference magnitude with a low-pass filter
   // This allows adaptation to slowly changing environments
   if (!magDisturbance[sensorId]) {  
-    lastMagMagnitude[sensorId] = 0.95f * lastMagMagnitude[sensorId] + 0.05f * magMagnitude;
+    lastMagMagnitude[sensorId] = 0.98f * lastMagMagnitude[sensorId] + 0.02f * magMagnitude;
   }
   // When a disturbance is detected, the current magnetic reading is considered unreliable or abnormal
   // By not updating the reference value during a disturbance, the system preserves the last known "good" reference value 
   // (allows for faster recovery when disturbance ends)
 }
 
-void FilterManager::updateEulerAngles(int sensorId, float dt) {
-  if (dt <= 0.0f || isnan(dt)) return;
-
-  float ax = filteredData[sensorId].accel[0];
-  float ay = filteredData[sensorId].accel[1];
-  float az = filteredData[sensorId].accel[2];
-
+bool FilterManager::detectSpineMovement(int sensorId) {
+  // Get current gyro values
   float gx = filteredData[sensorId].gyro[0];
   float gy = filteredData[sensorId].gyro[1];
   float gz = filteredData[sensorId].gyro[2];
-
-  float mx = filteredData[sensorId].mag[0];
-  float my = filteredData[sensorId].mag[1];
-  float mz = filteredData[sensorId].mag[2];
-
-  // NEW DEBUG CODE - Add this
-  if (sensorId == 1) {
-    Serial.print("Filtered accel: x="); Serial.print(ax, 6);
-    Serial.print(", y="); Serial.print(ay, 6);
-    Serial.print(", z="); Serial.print(az, 6);
-    Serial.println();
-    
-    Serial.print("Filtered gyro: x="); Serial.print(gx, 6);
-    Serial.print(", y="); Serial.print(gy, 6);
-    Serial.print(", z="); Serial.print(gz, 6);
-    Serial.println();
-    
-    Serial.print("Filtered mag: x="); Serial.print(mx, 6);
-    Serial.print(", y="); Serial.print(my, 6);
-    Serial.print(", z="); Serial.print(mz, 6);
-    Serial.println();
-  }
-
-  if (isnan(ax) || isnan(ay) || isnan(az) || isnan(mx) || isnan(my) || isnan(mz)) {
-    Serial.println("Invalid sensor data — Euler angles not updated!");
-    return;
-  }
-
-  float accel_mag = sqrt(ax * ax + ay * ay + az * az);
-  bool reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f);
-
-  // Pitch calculation uses square root approach to decouple it from roll (Z-Y-X parenting/ rotation sequence)
-  // This ensures accurate pitch measurement regardless of roll angle
-  float pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0f / M_PI;
-
-  // Roll is calculated as rotation around X axis using Y and Z components
-  float roll = atan2(ay, az) * 180.0f / M_PI;
-
-  float mag_norm = sqrt(mx * mx + my * my + mz * mz);
-  if (mag_norm <= 0.0001f) {
-    Serial.println("Mag norm too low — skipping yaw computation");
-    return;
-  }
-
-  mx /= mag_norm;
-  my /= mag_norm;
-  mz /= mag_norm;
-
-  float pitch_rad = pitch * M_PI / 180.0f;
-  float roll_rad = roll * M_PI / 180.0f;
-  float cos_pitch = cos(pitch_rad);
-  float sin_pitch = sin(pitch_rad);
-  float cos_roll = cos(roll_rad);
-  float sin_roll = sin(roll_rad);
-
-  float mx_h = mx * cos_pitch + my * sin_roll * sin_pitch + mz * cos_roll * sin_pitch;
-  float my_h = my * cos_roll - mz * sin_roll;
-
-  float yaw = atan2(my_h, mx_h) * 180.0f / M_PI + MAGNETIC_DECLINATION;
-
-  if (yaw < 0) yaw += 360.0f;
-  if (yaw > 360.0f) yaw -= 360.0f;
-
-  if (isnan(roll) || isnan(pitch) || isnan(yaw)) {
-    Serial.println("Euler result is NaN — resetting to 0");
-    roll = pitch = yaw = 0;
-  }
-
-  float alpha_roll = ALPHA;
-  float alpha_pitch = reliable_accel ? 0.90f : 0.98f;
-  float alpha_yaw = (magDisturbance[sensorId]) ? 0.995f : 0.90f;
-
-  // euler_angles[sensorId].roll = alpha_roll * (euler_angles[sensorId].roll + gx * dt * 180.0f / M_PI) + (1 - alpha_roll) * roll;
-  // euler_angles[sensorId].pitch = alpha_pitch * (euler_angles[sensorId].pitch + gy * dt * 180.0f / M_PI) + (1 - alpha_pitch) * pitch;
-  // euler_angles[sensorId].yaw = alpha_yaw * (euler_angles[sensorId].yaw + gz * dt * 180.0f / M_PI) + (1 - alpha_yaw) * yaw;
-  euler_angles[sensorId].roll = roll;
-  euler_angles[sensorId].pitch = pitch;
-  euler_angles[sensorId].yaw = yaw;
-
-    // NEW DEBUG CODE - Add this at the end of the function before the closing bracket
-  if (sensorId == 1) {
-    Serial.print("FINAL Euler angles: roll="); Serial.print(euler_angles[sensorId].roll, 6);
-    Serial.print(", pitch="); Serial.print(euler_angles[sensorId].pitch, 6);
-    Serial.print(", yaw="); Serial.print(euler_angles[sensorId].yaw, 6);
-    Serial.println();
-  }
+  
+  // Calculate gyro magnitude
+  float gyro_mag = sqrt(gx*gx + gy*gy + gz*gz);
+  
+  // Threshold for detecting movement
+  const float MOVEMENT_THRESHOLD = 0.06f; // rad/s
+  
+  return gyro_mag > MOVEMENT_THRESHOLD;
 }
 
+void FilterManager::updateEulerAngles(int sensorId, float dt) {
+  if (dt <= 0.0f || isnan(dt)) return;
+
+  // Get filtered sensor data
+  float ax = filteredData[sensorId].accel[0];
+  float ay = filteredData[sensorId].accel[1];
+  float az = filteredData[sensorId].accel[2];
+  float gx = filteredData[sensorId].gyro[0];
+  float gy = filteredData[sensorId].gyro[1];
+  float gz = filteredData[sensorId].gyro[2];
+  
+  // Sanity check inputs
+  if (isnan(ax) || isnan(ay) || isnan(az)) return;
+  if (isnan(gx) || isnan(gy) || isnan(gz)) return;
+  
+  // Normalize acceleration vector
+  float accel_mag = sqrt(ax*ax + ay*ay + az*az);
+  bool reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f);
+  if (!reliable_accel) return;
+  
+  // Calculate accelerometer-based angles (relies on gravity)
+  float accel_pitch = atan2(-ax, sqrt(ay*ay + az*az)) * RAD_TO_DEG;
+  float accel_roll = atan2(ay, az) * RAD_TO_DEG;
+  
+  // Check if we're in a static position by examining gyro magnitude
+  float gyro_mag = sqrt(gx*gx + gy*gy + gz*gz);
+  
+  bool is_static = (gyro_mag < 0.02f);  // 0.02 rad/s threshold (~1 deg/s)
+
+  // For static positions, rely more on accelerometer; for dynamic positions, rely more on gyro
+  float alpha;
+  if (is_static) {
+    // When static, trust accelerometer more (very small weight assigned to gyro integration part)
+    alpha = 0.1f;  // 10% gyro, 90% accelerometer
+    
+    // When static, update our gyro bias estimate
+    static float gyro_bias_x = calibrationManager->getCalibrationData(sensorId)->gyro_offset[0];
+    static float gyro_bias_y = calibrationManager->getCalibrationData(sensorId)->gyro_offset[1];
+    static float gyro_bias_z = calibrationManager->getCalibrationData(sensorId)->gyro_offset[2];
+
+    // Low-pass filter for gyro bias (when static, gyro should read zero)
+    float smoothing_fact = 0.95f;
+    float learning_rate = 1 - smoothing_fact;
+
+    // Adapt running estimates of the biases
+    gyro_bias_x = smoothing_fact * gyro_bias_x + learning_rate * gx;
+    gyro_bias_y = smoothing_fact * gyro_bias_y + learning_rate * gy;
+    gyro_bias_z = smoothing_fact * gyro_bias_z + learning_rate * gz;
+    
+    // Apply bias correction to our gyro readings
+    gx -= gyro_bias_x;
+    gy -= gyro_bias_y;
+    gz -= gyro_bias_z;
+  } 
+  else {
+    // When moving, trust gyro more (large weight to gyro integration)
+    alpha = 0.98f;  // 98% gyro, 2% accelerometer
+  }
+  
+  // Integrate gyro rates
+  float gyro_roll = euler_angles[sensorId].roll + gx * dt * RAD_TO_DEG;   // Euler angles were initialized with non-zero value to prevent a lagging system  
+  float gyro_pitch = euler_angles[sensorId].pitch + gy * dt * RAD_TO_DEG;
+  float gyro_yaw = euler_angles[sensorId].yaw + gz * dt * RAD_TO_DEG;
+
+  Serial.print("Gyro Integration [Sensor ");
+  Serial.print(sensorId);
+  Serial.print("] -> Roll: ");
+  Serial.print(gyro_roll, 2);
+  Serial.print(" | Pitch: ");
+  Serial.print(gyro_pitch, 2);
+  Serial.print(" | Yaw: ");
+  Serial.println(gyro_yaw, 2);
+  
+ // Apply complementary filter to roll and pitch
+  euler_angles[sensorId].roll = alpha * gyro_roll + (1.0f - alpha) * accel_roll;
+  euler_angles[sensorId].pitch = alpha * gyro_pitch + (1.0f - alpha) * accel_pitch;
+
+  // For yaw, simply use gyro integration, reset occasionally when movement is detected
+  // This avoids magnetic interference issues but will accumulate drift over time
+  euler_angles[sensorId].yaw = gyro_yaw;
+  
+  // Ensure yaw stays in 0-360 degree range
+  euler_angles[sensorId].yaw = fmod((euler_angles[sensorId].yaw + 360.0f), 360.0f); // Yaw angle between 0 and 360 degrees -> standard compass convention
+  
+  // Debug output for static position detection
+  static unsigned long lastDebugTime = 0;
+  if (millis() - lastDebugTime > 1000) {  // Once per second
+    lastDebugTime = millis();
+    
+    if (sensorId == 0) {  // Only debug first sensor
+      Serial.print("Static: ");
+      Serial.print(is_static ? "TRUE" : "FALSE");
+      Serial.print(" | Gyro mag: ");
+      Serial.print(gyro_mag, 6);
+      Serial.print(" | Alpha: ");
+      Serial.print(alpha);
+      Serial.print(" | Accel XYZ: ");
+      Serial.print(ax, 2); Serial.print(", ");
+      Serial.print(ay, 2); Serial.print(", ");
+      Serial.print(az, 2);
+      Serial.println();
+    }
+  }
+  
+  // Sanity check outputs
+  if (isnan(euler_angles[sensorId].roll)) euler_angles[sensorId].roll = accel_roll;
+  if (isnan(euler_angles[sensorId].pitch)) euler_angles[sensorId].pitch = accel_pitch;
+  if (isnan(euler_angles[sensorId].yaw)) euler_angles[sensorId].yaw = 0.0f;
+}
 
 void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   // Get filtered sensor data

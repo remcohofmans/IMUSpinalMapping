@@ -80,8 +80,11 @@ public:
   void getOrientation(int sensorId, float &roll, float &pitch, float &yaw);
   void getQuaternion(int sensorId, float &w, float &x, float &y, float &z);
   
-  // Check for magnetic disturbances
-  bool isMagneticDisturbanceDetected(int sensorId);
+  // Motion state tracking
+  bool inMotion[NO_OF_UNITS] = {false};
+
+  // Analyze gyro data to detect movement
+  bool detectSpineMovement(int sensorId);
     
   // Quaternion operations
   void normalizeQuaternion(Quaternion &q);
