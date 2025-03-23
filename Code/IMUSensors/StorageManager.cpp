@@ -78,6 +78,5 @@ bool StorageManager::loadCalibrationFromEEPROM() {
     Serial.println(i);
   }
   
-  Serial.println("Calibration data successfully loaded from EEPROM");
   return true;
 }

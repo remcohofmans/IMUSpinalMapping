@@ -64,6 +64,25 @@ void SensorManager::readAllSensors() {
 
     // Store timestamp of this reading
     sensorData[i].timestamp = millis();
+    
+    // NEW DEBUG CODE - Add this
+    if (i == 1) {  // Debug sensor 1 specifically
+      Serial.println("SensorManager: Raw data for Sensor 1");
+      Serial.print("Accel: X="); Serial.print(sensorData[i].accel[0], 6);
+      Serial.print(", Y="); Serial.print(sensorData[i].accel[1], 6);
+      Serial.print(", Z="); Serial.print(sensorData[i].accel[2], 6);
+      Serial.println();
+      
+      Serial.print("Gyro: X="); Serial.print(sensorData[i].gyro[0], 6);
+      Serial.print(", Y="); Serial.print(sensorData[i].gyro[1], 6);
+      Serial.print(", Z="); Serial.print(sensorData[i].gyro[2], 6);
+      Serial.println();
+      
+      Serial.print("Mag: X="); Serial.print(sensorData[i].mag[0], 6);
+      Serial.print(", Y="); Serial.print(sensorData[i].mag[1], 6);
+      Serial.print(", Z="); Serial.print(sensorData[i].mag[2], 6);
+      Serial.println();
+    }
   }
 }
 

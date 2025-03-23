@@ -134,6 +134,9 @@ private:
   KalmanState kalman_gyro_x[NO_OF_UNITS];
   KalmanState kalman_gyro_y[NO_OF_UNITS];
   KalmanState kalman_gyro_z[NO_OF_UNITS];
+  KalmanState kalman_mag_x[NO_OF_UNITS];
+  KalmanState kalman_mag_y[NO_OF_UNITS];
+  KalmanState kalman_mag_z[NO_OF_UNITS];
   
   // For backward compatibility (original implementation)
   float comp_angle_x[NO_OF_UNITS];  // Roll
@@ -150,7 +153,7 @@ private:
   float lastMagMagnitude[NO_OF_UNITS];
   
   // Timing for enhanced algorithm
-  unsigned long lastTime;
+  unsigned long lastSensorTime[NO_OF_UNITS] = {0};
   
   // Storage for filtered sensor data
   struct FilteredData {

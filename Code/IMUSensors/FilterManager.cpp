@@ -8,7 +8,6 @@
 #include <math.h>
 
 FilterManager::FilterManager() : 
-  lastTime(0),
   adaptiveFilteringEnabled(true),
   anatomicalConstraintsEnabled(false),
   useQuaternions(false) {
@@ -57,44 +56,102 @@ void FilterManager::initialize(SensorManager* sensorMgr, CalibrationManager* cal
 }
 
 void FilterManager::initializeFilters() {
-  // Initialize Kalman filter states for all sensors
   for (int i = 0; i < NO_OF_UNITS; i++) {
     if (!sensorManager->isSensorActive(i)) continue;
-    
-    // Accelerometer Kalman filters
-    kalman_accel_x[i].x = 0;
-    kalman_accel_x[i].p = 1;
-    kalman_accel_x[i].q = 0.0001;
-    kalman_accel_x[i].r = 0.001;
-    
-    kalman_accel_y[i].x = 0;
-    kalman_accel_y[i].p = 1;
-    kalman_accel_y[i].q = 0.0001;
-    kalman_accel_y[i].r = 0.001;
-    
-    kalman_accel_z[i].x = 0;
-    kalman_accel_z[i].p = 1;
-    kalman_accel_z[i].q = 0.0001;
-    kalman_accel_z[i].r = 0.001;
-    
-    // Gyroscope Kalman filters - configured for spine movements
-    // X-axis rotation rate - Axial Rotation
-    kalman_gyro_x[i].x = 0;
-    kalman_gyro_x[i].p = 1;
-    kalman_gyro_x[i].q = 0.0001;  // Higher restriction axial rotation
-    kalman_gyro_x[i].r = 0.001;   // Slightly increased measurement noise
-    
-    // Y-axis rotation rate - Flexion/Extension
-    kalman_gyro_y[i].x = 0;
-    kalman_gyro_y[i].p = 1;
-    kalman_gyro_y[i].q = 0.001;  // Lower restriction for flexion/extension
-    kalman_gyro_y[i].r = 0.001;    // Standard measurement noise
-    
-    // Z-axis rotation rate - Lateral Bending
-    kalman_gyro_z[i].x = 0;
-    kalman_gyro_z[i].p = 1;
-    kalman_gyro_z[i].q = 0.001;  // Moderate restriction for lateral bending
-    kalman_gyro_z[i].r = 0.001;    // Standard measurement noise
+
+    // Kalman filters
+    // Accelerometer
+    kalman_accel_x[i] = {0, 1, 0.0001f, 0.001f, 0};
+    kalman_accel_y[i] = {0, 1, 0.0001f, 0.001f, 0};
+    kalman_accel_z[i] = {0, 1, 0.0001f, 0.001f, 0};
+
+    // Gyroscope (spine-optimized)
+    kalman_gyro_x[i] = {0, 1, 0.0001f, 0.001f, 0};  // Axial rotation
+    kalman_gyro_y[i] = {0, 1, 0.001f, 0.001f, 0};   // Flexion/Extension
+    kalman_gyro_z[i] = {0, 1, 0.001f, 0.001f, 0};   // Lateral Bending
+
+    // Magnetometer
+    kalman_mag_x[i] = {0, 1, 0.0001f, 0.001f, 0};
+    kalman_mag_y[i] = {0, 1, 0.0001f, 0.001f, 0};
+    kalman_mag_z[i] = {0, 1, 0.0001f, 0.001f, 0};
+
+    // Initialize Euler angles from first sensor reading    
+    // First declare floats and populate with raw sensor data
+    float ax, ay, az, mx, my, mz;
+
+    sensorManager->getRawAccel(i, ax, ay, az);
+    sensorManager->getRawMag(i, mx, my, mz);
+    float temp = sensorManager->getTemperature(i);
+
+    // Declare floats to store the calibrated data
+    float c_ax, c_ay, c_az, c_mx, c_my, c_mz;
+
+    calibrationManager->calibrateAccelData(i, ax, ay, az, temp, c_ax, c_ay, c_az);
+    calibrationManager->calibrateMagData(i, mx, my, mz, c_mx, c_my, c_mz);
+
+    // Apply axis mapping before calculating angles
+    // calibrationManager->transformSensorAxes(ax, ay, az, axisMapping, axisSigns);
+    // calibrationManager->transformSensorAxes(mx, my, mz, axisMapping, axisSigns);
+
+    // Normalize accel
+    float accel_mag = sqrt(c_ax * c_ax + c_ay * c_ay + c_az * c_az);
+    if (accel_mag > 0.001f) {
+      c_ax /= accel_mag;
+      c_ay /= accel_mag;
+      c_az /= accel_mag;
+    }
+
+    // Calculate initial pitch and roll using the aircraft formulas
+    EulerAngles initial;
+
+    // Calculate pitch using square root method to decouple from roll angle
+    // This prevents pitch from being affected by device rotation around X-axis
+    // When device is rolled 90°, Z approaches 0 while Y becomes large
+    // Using sqrt(ay²+az²) ensures stable pitch calculation in all orientations
+    initial.pitch = atan2(-c_ax, sqrt(c_ay * c_ay + c_az * c_az)) * 180.0f / M_PI;
+
+    // Calculate roll as rotation between Y and Z axes
+    // Note: This calculation becomes unstable when pitch approaches ±90°!
+    // due to gimbal lock inherent in Euler angle representations
+    initial.roll = atan2(c_ay, c_az) * 180.0f / M_PI;
+
+    // Tilt-compensated magnetometer yaw
+    float pitch_rad = initial.pitch * M_PI / 180.0f;
+    float roll_rad = initial.roll * M_PI / 180.0f;
+
+    float cos_pitch = cos(pitch_rad);
+    float sin_pitch = sin(pitch_rad);
+    float cos_roll = cos(roll_rad);
+    float sin_roll = sin(roll_rad);
+
+    // The magnitude of the Earth's magnetic field can vary due to local interference (e.g., nearby ferromagnetic materials or electronic devices),
+    // sensor noise, temperature fluctuations, and calibration drift.
+    // However, for yaw (heading) calculation, we only care about the direction of the magnetic field — not its strength.
+    // Normalizing the magnetometer vector eliminates magnitude variability, resulting in a unit vector that preserves direction only.
+    float mag_norm = sqrt(c_mx * c_mx + c_my * c_my + c_mz * c_mz);
+    if (mag_norm > 0.001f) {
+      c_mx /= mag_norm;
+      c_my /= mag_norm;
+      c_mz /= mag_norm;
+    }
+
+    // Apply tilt compensation to project magnetic field vector onto horizontal plane
+    // First, rotate around X-axis (roll) and then around Y-axis (pitch)
+    // This transforms magnetometer readings as if the device were perfectly horizontal
+    float mx_h = c_mx * cos_pitch + c_my * sin_roll * sin_pitch + c_mz * cos_roll * sin_pitch;
+    float my_h = c_my * cos_roll - c_mz * sin_roll;
+
+    // Calculate heading (yaw) using the horizontally projected magnetic field components
+    // The magnetic declination adjusts for difference between magnetic and true geographic north
+    initial.yaw = atan2(my_h, mx_h) * 180.0f / M_PI + MAGNETIC_DECLINATION;
+    initial.yaw = fmod((initial.yaw + 360.0f), 360.0f); // Yaw angle between 0 and 360 degrees -> standard compass convention
+
+    euler_angles[i] = initial;
+
+    // Optionally initialize quaternions as well
+    if (useQuaternions) {
+      eulerToQuaternion(initial, quaternions[i]);
+    }
   }
 }
 
@@ -112,7 +169,7 @@ float FilterManager::applyMovingAverage(float new_value, float buffer[], int &bu
   
   // Calculate average
   float sum = 0;
-  for (int i = 0; i < FILTER_SAMPLES; i++) {
+  for (int i = 0; i < 3; i++) {
     sum += buffer[i];
   }
   
@@ -293,127 +350,78 @@ void FilterManager::slerp(const Quaternion &q1, const Quaternion &q2, float t, Q
 // ===== Sensor Fusion Implementation -> exploit on-board DMP =====
 
 void FilterManager::processAllSensors() {
-  if (!sensorManager) {
-    Serial.println("WARNING: SensorManager not initialized!");
-    return;
-  }
-  
+  if (!sensorManager) return;
+
+  unsigned long currentTime = millis();
+
   for (int sensorId = 0; sensorId < NO_OF_UNITS; sensorId++) {
     if (!sensorManager->isSensorActive(sensorId)) continue;
 
-    unsigned long currentTime = millis();
-    float dt = (sensorManager->getReadingTimestamp(sensorId) - lastTime) / 1000.0f;
-    lastTime = currentTime;
-    // Prevent large time jumps
+    // Compute per-sensor dt
+    float dt = (currentTime - lastSensorTime[sensorId]) / 1000.0f;
     if (dt > 0.2f) dt = 0.2f;
-    if (dt < 0.001f) dt = 0.001f; // Also prevent very small dt 
-                // (due to timing anomalies or when loops execute faster than the timer resolution)
-  
-    // Get sensor readings
-    float accel_x, accel_y, accel_z;
-    float gyro_x, gyro_y, gyro_z;
-    float mag_x, mag_y, mag_z;
-    float temperature;
-    
-    // Get raw readings
-    sensorManager->getRawAccel(sensorId, accel_x, accel_y, accel_z);
-    sensorManager->getRawGyro(sensorId, gyro_x, gyro_y, gyro_z);
-    sensorManager->getRawMag(sensorId, mag_x, mag_y, mag_z);
-    temperature = sensorManager->getTemperature(sensorId);
+    if (dt < 0.001f) dt = 0.001f;
+    lastSensorTime[sensorId] = currentTime;
 
-    // Apply axis mapping transformation
-    // calibrationManager->transformSensorAxes(accel_x, accel_y, accel_z, axisMapping, axisSigns);
-    // calibrationManager->transformSensorAxes(gyro_x, gyro_y, gyro_z, axisMapping, axisSigns);
-    // calibrationManager->transformSensorAxes(mag_x, mag_y, mag_z, axisMapping, axisSigns);                                         
+    float ax, ay, az, gx, gy, gz, mx, my, mz, temp;
+    sensorManager->getRawAccel(sensorId, ax, ay, az);
+    sensorManager->getRawGyro(sensorId, gx, gy, gz);
+    sensorManager->getRawMag(sensorId, mx, my, mz);
+    temp = sensorManager->getTemperature(sensorId);
 
-    // Apply calibration
-    float cal_accel_x, cal_accel_y, cal_accel_z;
-    float cal_gyro_x, cal_gyro_y, cal_gyro_z;
-    float cal_mag_x, cal_mag_y, cal_mag_z;
-    
-    if (calibrationManager) {
-      calibrationManager->calibrateAccelData(sensorId, accel_x, accel_y, accel_z, 
-                                           temperature, cal_accel_x, cal_accel_y, cal_accel_z);
-      calibrationManager->calibrateGyroData(sensorId, gyro_x, gyro_y, gyro_z, 
-                                          temperature, cal_gyro_x, cal_gyro_y, cal_gyro_z);
-      calibrationManager->calibrateMagData(sensorId, mag_x, mag_y, mag_z, 
-                                         cal_mag_x, cal_mag_y, cal_mag_z);
-    } else {
-      // If no calibration manager, use raw values
-      cal_accel_x = accel_x;
-      cal_accel_y = accel_y;
-      cal_accel_z = accel_z;
-      cal_gyro_x = gyro_x;
-      cal_gyro_y = gyro_y;
-      cal_gyro_z = gyro_z;
-      cal_mag_x = mag_x;
-      cal_mag_y = mag_y;
-      cal_mag_z = mag_z;
+    // Apply axis transformation (this was commented out before)
+    // calibrationManager->transformSensorAxes(ax, ay, az, axisMapping, axisSigns);
+    // calibrationManager->transformSensorAxes(gx, gy, gz, axisMapping, axisSigns);
+    // calibrationManager->transformSensorAxes(mx, my, mz, axisMapping, axisSigns);
+
+    // Calibration
+    float cal_ax, cal_ay, cal_az, cal_gx, cal_gy, cal_gz, cal_mx, cal_my, cal_mz;
+    calibrationManager->calibrateAccelData(sensorId, ax, ay, az, temp, cal_ax, cal_ay, cal_az);
+    calibrationManager->calibrateGyroData(sensorId, gx, gy, gz, temp, cal_gx, cal_gy, cal_gz);
+    calibrationManager->calibrateMagData(sensorId, mx, my, mz, cal_mx, cal_my, cal_mz);
+
+    // Filtered data (basic moving average + Kalman filtering)
+    float fa_x = applyKalmanFilter(applyMovingAverage(cal_ax, accel_x_buffer[sensorId], buffer_index[sensorId]), kalman_accel_x[sensorId]);
+    float fa_y = applyKalmanFilter(applyMovingAverage(cal_ay, accel_y_buffer[sensorId], buffer_index[sensorId]), kalman_accel_y[sensorId]);
+    float fa_z = applyKalmanFilter(applyMovingAverage(cal_az, accel_z_buffer[sensorId], buffer_index[sensorId]), kalman_accel_z[sensorId]);
+
+    float fgx = applyKalmanFilter(cal_gx, kalman_gyro_x[sensorId]);
+    float fgy = applyKalmanFilter(cal_gy, kalman_gyro_y[sensorId]);
+    float fgz = applyKalmanFilter(cal_gz, kalman_gyro_z[sensorId]);
+
+    float fmx = applyKalmanFilter(applyMovingAverage(cal_mx, mag_x_buffer[sensorId], buffer_index[sensorId]), kalman_mag_x[sensorId]);
+    float fmy = applyKalmanFilter(applyMovingAverage(cal_my, mag_y_buffer[sensorId], buffer_index[sensorId]), kalman_mag_y[sensorId]);
+    float fmz = applyKalmanFilter(applyMovingAverage(cal_mz, mag_z_buffer[sensorId], buffer_index[sensorId]), kalman_mag_z[sensorId]);
+
+    filteredData[sensorId].accel[0] = fa_x;
+    filteredData[sensorId].accel[1] = fa_y;
+    filteredData[sensorId].accel[2] = fa_z;
+    filteredData[sensorId].gyro[0] = fgx;
+    filteredData[sensorId].gyro[1] = fgy;
+    filteredData[sensorId].gyro[2] = fgz;
+    filteredData[sensorId].mag[0] = fmx;
+    filteredData[sensorId].mag[1] = fmy;
+    filteredData[sensorId].mag[2] = fmz;
+
+    // Sanity check accel magnitude to avoid NaN
+    float accel_mag = sqrt(fa_x*fa_x + fa_y*fa_y + fa_z*fa_z);
+    if (accel_mag < 1e-3f) {
+      Serial.println("Warning: accel magnitude too low, skipping orientation update.");
+      continue;
     }
 
-    Serial.println("DEBUG Mag before/after filtering:");
-    Serial.print("Before: X="); Serial.print(cal_mag_x, 6);
-    Serial.print(", Y="); Serial.print(cal_mag_y, 6);
-    Serial.print(", Z="); Serial.print(cal_mag_z, 6);
-    Serial.println();
-
-    static bool buffer_initialized[NO_OF_UNITS] = {false};
-
-    if (!buffer_initialized[sensorId]) {
-      // Initialize all buffers for this sensor with current values
-      for (int i = 0; i < FILTER_SAMPLES; i++) {
-        accel_x_buffer[sensorId][i] = cal_accel_x;
-        accel_y_buffer[sensorId][i] = cal_accel_y;
-        accel_z_buffer[sensorId][i] = cal_accel_z;
-        mag_x_buffer[sensorId][i] = cal_mag_x;
-        mag_y_buffer[sensorId][i] = cal_mag_y;
-        mag_z_buffer[sensorId][i] = cal_mag_z;
-      }
-      buffer_initialized[sensorId] = true;
+    // Catch and fix NaN Euler angles
+    if (isnan(euler_angles[sensorId].roll) || isnan(euler_angles[sensorId].pitch) || isnan(euler_angles[sensorId].yaw)) {
+      Serial.println("NaN detected in Euler angles. Resetting orientation.");
+      euler_angles[sensorId] = {0, 0, 0};
     }
-        
-    // Apply Moving Average filter
-    float ma_accel_x = applyMovingAverage(cal_accel_x, accel_x_buffer[sensorId], buffer_index[sensorId]);
-    float ma_accel_y = applyMovingAverage(cal_accel_y, accel_y_buffer[sensorId], buffer_index[sensorId]);
-    float ma_accel_z = applyMovingAverage(cal_accel_z, accel_z_buffer[sensorId], buffer_index[sensorId]);
 
-    float ma_mag_x = applyMovingAverage(cal_mag_x, mag_x_buffer[sensorId], buffer_index[sensorId]);
-    float ma_mag_y = applyMovingAverage(cal_mag_y, mag_y_buffer[sensorId], buffer_index[sensorId]);
-    float ma_mag_z = applyMovingAverage(cal_mag_z, mag_z_buffer[sensorId], buffer_index[sensorId]);
-    
-    float ma_gyro_x = cal_gyro_x;
-    float ma_gyro_y = cal_gyro_y;
-    float ma_gyro_z = cal_gyro_z;
-    
-    // Apply Kalman filter
-    filteredData[sensorId].accel[0] = applyKalmanFilter(ma_accel_x, kalman_accel_x[sensorId]);
-    filteredData[sensorId].accel[1] = applyKalmanFilter(ma_accel_y, kalman_accel_y[sensorId]);
-    filteredData[sensorId].accel[2] = applyKalmanFilter(ma_accel_z, kalman_accel_z[sensorId]);
-    
-    filteredData[sensorId].gyro[0] = applyKalmanFilter(ma_gyro_x, kalman_gyro_x[sensorId]);
-    filteredData[sensorId].gyro[1] = applyKalmanFilter(ma_gyro_y, kalman_gyro_y[sensorId]);
-    filteredData[sensorId].gyro[2] = applyKalmanFilter(ma_gyro_z, kalman_gyro_z[sensorId]);
-    
-    filteredData[sensorId].mag[0] = ma_mag_x;
-    filteredData[sensorId].mag[1] = ma_mag_y;
-    filteredData[sensorId].mag[2] = ma_mag_z;
-    
-    // Detect magnetic disturbances
-    detectMagneticDisturbance(sensorId, ma_mag_x, ma_mag_y, ma_mag_z);
-
-    // After filtering:
-    Serial.print("After: X="); Serial.print(filteredData[sensorId].mag[0], 6);
-    Serial.print(", Y="); Serial.print(filteredData[sensorId].mag[1], 6);
-    Serial.print(", Z="); Serial.print(filteredData[sensorId].mag[2], 6);
-    Serial.println();
-    
-    // Apply sensor fusion algorithm
     if (useQuaternions) {
       updateQuaternionOrientation(sensorId, dt);
     } else {
       updateEulerAngles(sensorId, dt);
     }
-    
+
     // Apply anatomical constraints if enabled
     if (anatomicalConstraintsEnabled) {
       applySpinalConstraints(sensorId);
@@ -449,165 +457,103 @@ void FilterManager::detectMagneticDisturbance(int sensorId, float mag_x, float m
 }
 
 void FilterManager::updateEulerAngles(int sensorId, float dt) {
+  if (dt <= 0.0f || isnan(dt)) return;
 
-  Serial.println("DEBUG updateEulerAngles for Sensor " + String(sensorId));
-  Serial.print("Axis mapping: [");
-  Serial.print(axisMapping[0]); Serial.print(", ");
-  Serial.print(axisMapping[1]); Serial.print(", ");
-  Serial.print(axisMapping[2]); Serial.println("]");
+  float ax = filteredData[sensorId].accel[0];
+  float ay = filteredData[sensorId].accel[1];
+  float az = filteredData[sensorId].accel[2];
 
-  Serial.print("Axis signs: [");
-  Serial.print(axisSigns[0]); Serial.print(", ");
-  Serial.print(axisSigns[1]); Serial.print(", ");
-  Serial.print(axisSigns[2]); Serial.println("]");
+  float gx = filteredData[sensorId].gyro[0];
+  float gy = filteredData[sensorId].gyro[1];
+  float gz = filteredData[sensorId].gyro[2];
 
-  // Get filtered sensor data
-  float accel_x = filteredData[sensorId].accel[0];
-  float accel_y = filteredData[sensorId].accel[1];
-  float accel_z = filteredData[sensorId].accel[2];
-  
-  float gyro_x = filteredData[sensorId].gyro[0]; // rad/s
-  float gyro_y = filteredData[sensorId].gyro[1]; // rad/s
-  float gyro_z = filteredData[sensorId].gyro[2]; // rad/s
-  
-  float mag_x = filteredData[sensorId].mag[0];
-  float mag_y = filteredData[sensorId].mag[1];
-  float mag_z = filteredData[sensorId].mag[2];
-  
-  // Calculate magnitude of acceleration for tilt reliability estimation
-  float accel_mag = sqrt(accel_x*accel_x + accel_y*accel_y + accel_z*accel_z);
-  
-  // Check alignment with gravity and determine reliability
-  float x_alignment = fabs(accel_x / accel_mag); // Should be high when X is aligned with gravity
-  bool reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f); // Near 9.8 m/s²
-  
-  // Calculate pitch and yaw from accelerometer
-  // For our coordinate system (X down, Y left, Z out of back) to be used 
-  // without hitting Gimbal lock when positioning it vertically, we need to reinterpret the reference frame
-  float accel_pitch, accel_yaw;
+  float mx = filteredData[sensorId].mag[0];
+  float my = filteredData[sensorId].mag[1];
+  float mz = filteredData[sensorId].mag[2];
 
-  // Adapt the calculation based on your preferred orientation
-  if (axisMapping[0] == 0) {
-    // Default configuration
-    euler_angles[sensorId].pitch = accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
-    euler_angles[sensorId].yaw = accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;
-  } else if (axisMapping[0] == 2) {
-    // X-axis down configuration
-    Serial.println("AM HERE");
-    euler_angles[sensorId].pitch = accel_pitch = atan2(accel_z, sqrt(accel_y*accel_y + accel_x*accel_x)) * 180.0f / M_PI;
-    euler_angles[sensorId].yaw = accel_yaw = atan2(accel_y, accel_z) * 180.0f / M_PI;
-  } else {
-    // Other configurations
-    accel_pitch = atan2(accel_x, sqrt(accel_y*accel_y + accel_z*accel_z)) * 180.0f / M_PI;
-    accel_yaw = atan2(accel_y, accel_x) * 180.0f / M_PI;
+  // NEW DEBUG CODE - Add this
+  if (sensorId == 1) {
+    Serial.print("Filtered accel: x="); Serial.print(ax, 6);
+    Serial.print(", y="); Serial.print(ay, 6);
+    Serial.print(", z="); Serial.print(az, 6);
+    Serial.println();
+    
+    Serial.print("Filtered gyro: x="); Serial.print(gx, 6);
+    Serial.print(", y="); Serial.print(gy, 6);
+    Serial.print(", z="); Serial.print(gz, 6);
+    Serial.println();
+    
+    Serial.print("Filtered mag: x="); Serial.print(mx, 6);
+    Serial.print(", y="); Serial.print(my, 6);
+    Serial.print(", z="); Serial.print(mz, 6);
+    Serial.println();
   }
 
-  // We can't reliably determine roll from accelerometer alone when X is aligned with gravity
-  // Instead, we'll use magnetometer data to help with roll (axial rotation)
-  
-  // First, normalize magnetometer readings
-  float mag_magnitude = sqrt(mag_x*mag_x + mag_y*mag_y + mag_z*mag_z);
-  if (mag_magnitude > 0.0f) {
-    mag_x /= mag_magnitude;
-    mag_y /= mag_magnitude;
-    mag_z /= mag_magnitude;
+  if (isnan(ax) || isnan(ay) || isnan(az) || isnan(mx) || isnan(my) || isnan(mz)) {
+    Serial.println("Invalid sensor data — Euler angles not updated!");
+    return;
   }
-  
-  // Apply tilt compensation to magnetometer using current orientation estimate
-  float cos_roll = cos(euler_angles[sensorId].roll * M_PI / 180.0f);
-  float sin_roll = sin(euler_angles[sensorId].roll * M_PI / 180.0f);
-  float cos_pitch = cos(euler_angles[sensorId].pitch * M_PI / 180.0f);
-  float sin_pitch = sin(euler_angles[sensorId].pitch * M_PI / 180.0f);
-  
-  // Rotate magnetometer readings to horizontal plane
-  // Adjusting signs for our coordinate system
-  float mag_x_comp = mag_x * cos_pitch + mag_y * sin_roll * sin_pitch + mag_z * cos_roll * sin_pitch;
-  float mag_y_comp = mag_y * cos_roll - mag_z * sin_roll;
-  
-  // Calculate roll (axial rotation) using magnetometer
-  // This gives us rotation around X axis which can't be determined from accelerometer
-  float mag_roll = atan2(mag_y_comp, mag_x_comp) * 180.0f / M_PI;
-  
-  // Apply magnetic declination adjustment
-  mag_roll += MAGNETIC_DECLINATION;
-  
-  // Normalize mag_roll to prevent jumps
-  while (mag_roll > 180.0f) mag_roll -= 360.0f;
-  while (mag_roll < -180.0f) mag_roll += 360.0f;
-  
-  // Determine adaptive filter coefficients
-  float alpha_roll = 0.95;  // Default: 98% gyro, 2% mag
-  float alpha_pitch = 0.95;
-  float alpha_yaw = 0.95;
-  
-  if (adaptiveFilteringEnabled) {
-    // Adjust weights based on sensor reliability
-    
-    // For roll - rely more on gyro when magnetic disturbance detected
-    if (magDisturbance[sensorId]) {
-      alpha_roll = 0.995f; // Almost entirely rely on gyro during disturbance
-    } else {
-      // When X is aligned with gravity, rely more on magnetometer for roll
-      if (x_alignment > 0.9f) {
-        alpha_roll = 0.85f; // More weight to magnetometer for roll when X aligned with gravity
-      }
-    }
-    
-    // For pitch - generally reliable with accelerometer when not accelerating
-    if (!reliable_accel) {
-      alpha_pitch = 0.95f; // Less weight to potentially noisy accelerometer
-    } else {
-      alpha_pitch = 0.85f; // More weight to accelerometer when reliable
-    }
-    
-    // For yaw - less reliable when magnetic disturbance detected
-    if (magDisturbance[sensorId]) {
-      alpha_yaw = 0.995f; // Almost entirely rely on gyro during disturbance
-    } else {
-      alpha_yaw = 0.9f; // Normal weight otherwise
-    }
-  }
-  
-  // Integrate gyro rates
-  float gyro_roll = euler_angles[sensorId].roll + gyro_x * dt * 180.0f / M_PI;
-  float gyro_pitch = euler_angles[sensorId].pitch + gyro_y * dt * 180.0f / M_PI;
-  float gyro_yaw = euler_angles[sensorId].yaw + gyro_z * dt * 180.0f / M_PI;
-  
-  // Normalize angles to prevent jumps
-  while (mag_roll - gyro_roll > 180.0f) mag_roll -= 360.0f;
-  while (mag_roll - gyro_roll < -180.0f) mag_roll += 360.0f;
-  
-  while (accel_pitch - gyro_pitch > 180.0f) accel_pitch -= 360.0f;
-  while (accel_pitch - gyro_pitch < -180.0f) accel_pitch += 360.0f;
-  
-  while (accel_yaw - gyro_yaw > 180.0f) accel_yaw -= 360.0f;
-  while (accel_yaw - gyro_yaw < -180.0f) accel_yaw += 360.0f;
-  
-  // Apply complementary filter
-  float new_roll = alpha_roll * gyro_roll + (1.0f - alpha_roll) * mag_roll;
-  float new_pitch = alpha_pitch * gyro_pitch + (1.0f - alpha_pitch) * accel_pitch;
-  float new_yaw = alpha_yaw * gyro_yaw + (1.0f - alpha_yaw) * accel_yaw;
 
-  // ANGLES ALREADY WRONG HERE
-  
-  // Normalize angles to -180° to +180° range
-  while (new_roll > 180.0f) new_roll -= 360.0f;
-  while (new_roll < -180.0f) new_roll += 360.0f;
-  
-  while (new_pitch > 180.0f) new_pitch -= 360.0f;
-  while (new_pitch < -180.0f) new_pitch += 360.0f;
-  
-  while (new_yaw > 180.0f) new_yaw -= 360.0f;
-  while (new_yaw < -180.0f) new_yaw += 360.0f;
-  
-  // Update Euler angles
-  euler_angles[sensorId].roll = new_roll;   // Axial rotation (around X)
-  euler_angles[sensorId].pitch = new_pitch; // Flexion/Extension (around Y)
-  euler_angles[sensorId].yaw = new_yaw;     // Lateral bending (around Z)
-  
-  // Update quaternion from Euler angles for consistency
-  eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
+  float accel_mag = sqrt(ax * ax + ay * ay + az * az);
+  bool reliable_accel = (accel_mag > 9.5f && accel_mag < 10.1f);
+
+  // Pitch calculation uses square root approach to decouple it from roll (Z-Y-X parenting/ rotation sequence)
+  // This ensures accurate pitch measurement regardless of roll angle
+  float pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0f / M_PI;
+
+  // Roll is calculated as rotation around X axis using Y and Z components
+  float roll = atan2(ay, az) * 180.0f / M_PI;
+
+  float mag_norm = sqrt(mx * mx + my * my + mz * mz);
+  if (mag_norm <= 0.0001f) {
+    Serial.println("Mag norm too low — skipping yaw computation");
+    return;
+  }
+
+  mx /= mag_norm;
+  my /= mag_norm;
+  mz /= mag_norm;
+
+  float pitch_rad = pitch * M_PI / 180.0f;
+  float roll_rad = roll * M_PI / 180.0f;
+  float cos_pitch = cos(pitch_rad);
+  float sin_pitch = sin(pitch_rad);
+  float cos_roll = cos(roll_rad);
+  float sin_roll = sin(roll_rad);
+
+  float mx_h = mx * cos_pitch + my * sin_roll * sin_pitch + mz * cos_roll * sin_pitch;
+  float my_h = my * cos_roll - mz * sin_roll;
+
+  float yaw = atan2(my_h, mx_h) * 180.0f / M_PI + MAGNETIC_DECLINATION;
+
+  if (yaw < 0) yaw += 360.0f;
+  if (yaw > 360.0f) yaw -= 360.0f;
+
+  if (isnan(roll) || isnan(pitch) || isnan(yaw)) {
+    Serial.println("Euler result is NaN — resetting to 0");
+    roll = pitch = yaw = 0;
+  }
+
+  float alpha_roll = ALPHA;
+  float alpha_pitch = reliable_accel ? 0.90f : 0.98f;
+  float alpha_yaw = (magDisturbance[sensorId]) ? 0.995f : 0.90f;
+
+  // euler_angles[sensorId].roll = alpha_roll * (euler_angles[sensorId].roll + gx * dt * 180.0f / M_PI) + (1 - alpha_roll) * roll;
+  // euler_angles[sensorId].pitch = alpha_pitch * (euler_angles[sensorId].pitch + gy * dt * 180.0f / M_PI) + (1 - alpha_pitch) * pitch;
+  // euler_angles[sensorId].yaw = alpha_yaw * (euler_angles[sensorId].yaw + gz * dt * 180.0f / M_PI) + (1 - alpha_yaw) * yaw;
+  euler_angles[sensorId].roll = roll;
+  euler_angles[sensorId].pitch = pitch;
+  euler_angles[sensorId].yaw = yaw;
+
+    // NEW DEBUG CODE - Add this at the end of the function before the closing bracket
+  if (sensorId == 1) {
+    Serial.print("FINAL Euler angles: roll="); Serial.print(euler_angles[sensorId].roll, 6);
+    Serial.print(", pitch="); Serial.print(euler_angles[sensorId].pitch, 6);
+    Serial.print(", yaw="); Serial.print(euler_angles[sensorId].yaw, 6);
+    Serial.println();
+  }
 }
+
 
 void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   // Get filtered sensor data
@@ -625,7 +571,7 @@ void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   
   // Normalize accelerometer data
   float accel_mag = sqrt(accel_x*accel_x + accel_y*accel_y + accel_z*accel_z);
-  if (accel_mag > 0.0f) {
+  if (accel_mag > 0.001f) {
     accel_x /= accel_mag;
     accel_y /= accel_mag;
     accel_z /= accel_mag;
@@ -633,7 +579,7 @@ void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   
   // Normalize magnetometer data
   float mag_mag = sqrt(mag_x*mag_x + mag_y*mag_y + mag_z*mag_z);
-  if (mag_mag > 0.0f) {
+  if (mag_mag > 0.001f) {
     mag_x /= mag_mag;
     mag_y /= mag_mag;
     mag_z /= mag_mag;
@@ -858,5 +804,14 @@ void FilterManager::getOrientation(int sensorId, float &roll, float &pitch, floa
   roll = euler_angles[sensorId].roll;   // Axial Rotation
   pitch = euler_angles[sensorId].pitch; // Flexion/Extension
   yaw = euler_angles[sensorId].yaw;     // Lateral Bending
+
+  // NEW DEBUG CODE - Add this
+  if (sensorId == 1) {
+    Serial.println("DEBUG getOrientation for Sensor 1");
+    Serial.print("Returning: roll="); Serial.print(roll, 6);
+    Serial.print(", pitch="); Serial.print(pitch, 6);
+    Serial.print(", yaw="); Serial.print(yaw, 6);
+    Serial.println();
+  }
 }
 

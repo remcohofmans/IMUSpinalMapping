@@ -29,16 +29,12 @@ unsigned long lastWebUpdateTime = 0;
 const unsigned long WEB_UPDATE_INTERVAL = 1; // 1ms -> 1000Hz update rate
 
 void setup(void) {
-
   
   Serial.begin(115200); // Initialize serial communication with a baud rate of 115200 bps
   while (!Serial)
     delay(10);
-
-  // Initialize Wire library
-  Wire.begin();
   
-  // Set up communication channels between ESP32 and sensor hardware (I2C)
+  // Initialize I2C communication between ESP32 and sensors
   if (!sensorManager.initialize()) {
     Serial.println("CRITICAL ERROR: No sensors found!");
     while (1) {
