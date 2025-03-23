@@ -76,18 +76,49 @@ void FilterManager::initializeFilters() {
     kalman_mag_z[i] = {0, 1, 0.0001f, 0.001f, 0};
 
     // Initialize Euler angles from first sensor reading    
-    // First declare floats and populate with raw sensor data
-    float ax, ay, az, mx, my, mz;
+    // First get raw sensor data
+    sensorManager->readAllSensors();
+    float ax, ay, az, mx, my, mz, gx, gy, gz;
 
     sensorManager->getRawAccel(i, ax, ay, az);
     sensorManager->getRawMag(i, mx, my, mz);
+    sensorManager->getRawGyro(i, gx, gy, gz);
     float temp = sensorManager->getTemperature(i);
 
-    // Declare floats to store the calibrated data
-    float c_ax, c_ay, c_az, c_mx, c_my, c_mz;
+    // Then calibrate it
+    float c_ax, c_ay, c_az, c_mx, c_my, c_mz, c_gx, c_gy, c_gz;
 
     calibrationManager->calibrateAccelData(i, ax, ay, az, temp, c_ax, c_ay, c_az);
     calibrationManager->calibrateMagData(i, mx, my, mz, c_mx, c_my, c_mz);
+    calibrationManager->calibrateGyroData(i, gx, gy, gz, temp, c_gx, c_gy, c_gz);
+
+    // Initialize buffers with first readings if not already initialized
+    if (!accel_buffer_initialized[i]) {
+      for (int j = 0; j < FILTER_SAMPLES; j++) {
+        accel_x_buffer[i][j] = c_ax;
+        accel_y_buffer[i][j] = c_ay;
+        accel_z_buffer[i][j] = c_az;
+      }
+      accel_buffer_initialized[i] = true;
+    }
+
+    if (!gyro_buffer_initialized[i]) {
+      for (int j = 0; j < FILTER_SAMPLES; j++) {
+        gyro_x_buffer[i][j] = c_gx;
+        gyro_y_buffer[i][j] = c_gy;
+        gyro_z_buffer[i][j] = c_gz;
+      }
+      gyro_buffer_initialized[i] = true;
+    }
+
+    if (!mag_buffer_initialized[i]) {
+      for (int j = 0; j < FILTER_SAMPLES; j++) {
+        mag_x_buffer[i][j] = c_mx;
+        mag_y_buffer[i][j] = c_my;
+        mag_z_buffer[i][j] = c_mz;
+      }
+      mag_buffer_initialized[i] = true;
+    }
 
     // Apply axis mapping before calculating angles
     // calibrationManager->transformSensorAxes(ax, ay, az, axisMapping, axisSigns);
