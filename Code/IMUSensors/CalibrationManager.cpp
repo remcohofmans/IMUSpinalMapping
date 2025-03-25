@@ -547,9 +547,9 @@ void CalibrationManager::calibrateAccelData(int sensorId, float raw_x, float raw
   // NEW DEBUG CODE - Add this
   if (sensorId == 1) {  // Only debug sensor 1
     Serial.println("DEBUG calibrateAccelData for Sensor 1");
-    Serial.print("raw_x="); Serial.print(raw_x, 6);
-    Serial.print(", raw_y="); Serial.print(raw_y, 6);
-    Serial.print(", raw_z="); Serial.print(raw_z, 6);
+    Serial.print("raw_x="); Serial.print(raw_x, 2);
+    Serial.print(", raw_y="); Serial.print(raw_y, 2);
+    Serial.print(", raw_z="); Serial.print(raw_z, 2);
     Serial.println();
   }
   
@@ -591,7 +591,7 @@ void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_
   float offset_x = temp_comp_x - calibrationData[sensorId].gyro_offset[0];
   float offset_y = temp_comp_y - calibrationData[sensorId].gyro_offset[1];
   float offset_z = temp_comp_z - calibrationData[sensorId].gyro_offset[2];
-  
+
   // Apply scale 
   cal_x = offset_x * calibrationData[sensorId].gyro_scale[0];
   cal_y = offset_y * calibrationData[sensorId].gyro_scale[1];

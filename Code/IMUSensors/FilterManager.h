@@ -7,6 +7,8 @@
 #define FILTER_MANAGER_H
 
 #include "SensorManager.h"
+#include "SensorQueue.h"
+
 
 // Forward declaration to avoid circular dependency
 class CalibrationManager;
@@ -47,9 +49,9 @@ public:
   
   // Process and filter sensors
   void processAllSensors();
-  
+
   // Individual filter implementations
-  float applyMovingAverage(float new_value, float buffer[], int &buffer_idx);
+  float applyMovingAverage(float new_value, SensorQueue& q);
   float applyKalmanFilter(float measurement, KalmanState &state);
   
   // Apply complementary filter for orientation
@@ -107,19 +109,29 @@ private:
   
   // Filter coefficient (0.98 = 98% gyro, 2% accel)
   static constexpr float ALPHA = 0.98f;
+
+  static unsigned long lastDebugTime;
   
-  // Moving average filter buffers
+  // Moving average filter buffer
   static const int FILTER_SAMPLES = 10;
-  float accel_x_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float accel_y_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float accel_z_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float gyro_x_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float gyro_y_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float gyro_z_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float mag_x_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float mag_y_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  float mag_z_buffer[NO_OF_UNITS][FILTER_SAMPLES];
-  int buffer_index[NO_OF_UNITS];
+  // Weights for each sample in filter buffer (newest to oldest)
+  const float weights[FILTER_SAMPLES] = {0.25, 0.15, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.05, 0.05};
+
+  // Threshold for detecting movement
+  static constexpr float MOVEMENT_THRESHOLD = 0.06f; // rad/s
+
+  // Buffering queue objects
+  SensorQueue accel_x_buffer[NO_OF_UNITS];
+  SensorQueue accel_y_buffer[NO_OF_UNITS];
+  SensorQueue accel_z_buffer[NO_OF_UNITS];
+
+  SensorQueue gyro_x_buffer[NO_OF_UNITS];
+  SensorQueue gyro_y_buffer[NO_OF_UNITS];
+  SensorQueue gyro_z_buffer[NO_OF_UNITS];
+
+  SensorQueue mag_x_buffer[NO_OF_UNITS];
+  SensorQueue mag_y_buffer[NO_OF_UNITS];
+  SensorQueue mag_z_buffer[NO_OF_UNITS];
   
   // Buffer initialization flags
   bool accel_buffer_initialized[NO_OF_UNITS];
