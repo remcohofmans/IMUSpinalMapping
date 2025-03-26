@@ -115,10 +115,10 @@ private:
   // Moving average filter buffer
   static const int FILTER_SAMPLES = 10;
   // Weights for each sample in filter buffer (newest to oldest)
-  const float weights[FILTER_SAMPLES] = {0.25, 0.15, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.05, 0.05};
+  const float weights[FILTER_SAMPLES] = {0.05, 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.15, 0.25};
 
   // Threshold for detecting movement
-  static constexpr float MOVEMENT_THRESHOLD = 0.06f; // rad/s
+  static constexpr float MOVEMENT_THRESHOLD = 0.03f; // rad/s
 
   // Buffering queue objects
   SensorQueue accel_x_buffer[NO_OF_UNITS];

@@ -96,15 +96,15 @@ void setup(void) {
   // filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
     
   // Initialize and start web server to serve data over HTTP and WebSockets to the browser client
-  if (webServer.initialize(ssid, password, "esp32-imu")) {
-    webServer.start();
-  } else {
-    Serial.println("WARNING: Web server initialization failed.");
-    Serial.println("Continuing with Serial output only");
-  }
+  // if (webServer.initialize(ssid, password, "esp32-imu")) {
+  //   webServer.start();
+  // } else {
+  //   Serial.println("WARNING: Web server initialization failed.");
+  //   Serial.println("Continuing with Serial output only");
+  // }
   
   // Server has been set up, regularly update the orientation data
-  lastWebUpdateTime = millis();
+  // lastWebUpdateTime = millis();
 }
 
 void loop() {
@@ -125,5 +125,5 @@ void loop() {
   }
   
   // Delay to not overwhelm the system
-  delay(2000);
+  delay(10);  
 }

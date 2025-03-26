@@ -63,10 +63,11 @@ public:
   
   // Access calibration data (for storage)
   CalibrationData* getCalibrationData(int sensorId);
+  void setGyroOffset (int sensorId, float offsetX, float offsetY, float offsetZ);
   void setCalibrationData(int sensorId, const CalibrationData& data);
   size_t getCalibrationDataSize() const;
   CalibrationData* getAllCalibrationData();
-
+  
 private:
   SensorManager* sensorManager;
   FilterManager* filterManager;
