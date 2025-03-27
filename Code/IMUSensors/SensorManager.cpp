@@ -12,17 +12,25 @@ SensorManager::SensorManager() : activeCount(0) {
   }
 }
 
+void SensorManager::tca_select(uint8_t i) {
+  if (i > 7) return;  // TCA9548A has 8 channels (0-7)
+  
+  Wire.beginTransmission(TCAADDR);  
+  Wire.write(1 << i);  // Select the desired channel
+  Wire.endTransmission();
+}
+
 bool SensorManager::initialize() {
-  // Try to initialize the IMUs with specific addresses
-  // Addresses to try: 0x68 and 0x69
-  uint8_t addresses[] = {0x68, 0x69};
+  uint8_t TCA_select[2] = {0, 1};  // TCA channels - {0, 0, 1, 1, 2}
+  uint8_t addresses[2] = {0x69, 0x68};  // Sensor addresses - {0x68, 0x69, 0x68, 0x69, 0x69}
   
   for (int i = 0; i < NO_OF_UNITS; i++) {
-    // Try to initialize each sensor with its specific address
-    if (icm[i].begin_I2C(addresses[i])) {
+    tca_select(TCA_select[i]);  // Select the correct multiplexer channel
+
+    if (icm[i].begin_I2C(addresses[i])) {  // Initialize sensor
       sensorActive[i] = true;
       activeCount++;
-      Serial.print("Sensor Unit "); 
+      Serial.print("Sensor Unit ");
       Serial.print(i + 1);
       Serial.print(" initialized successfully at address 0x");
       Serial.println(addresses[i], HEX);
@@ -33,12 +41,35 @@ bool SensorManager::initialize() {
       Serial.println(addresses[i], HEX);
     }
   }
-  
-  Serial.print("Total active sensors: ");
-  Serial.println(activeCount);
-  
-  return activeCount > 0;
 }
+
+// bool SensorManager::initialize() {
+//   // Try to initialize the IMUs with specific addresses
+//   // Addresses to try: 0x68 and 0x69
+//   uint8_t addresses[] = {0x68, 0x69};
+  
+//   for (int i = 0; i < NO_OF_UNITS; i++) {
+//     // Try to initialize each sensor with its specific address
+//     if (icm[i].begin_I2C(addresses[i])) {
+//       sensorActive[i] = true;
+//       activeCount++;
+//       Serial.print("Sensor Unit "); 
+//       Serial.print(i + 1);
+//       Serial.print(" initialized successfully at address 0x");
+//       Serial.println(addresses[i], HEX);
+//     } else {
+//       Serial.print("Failed to find ICM-20948 chip for Unit ");
+//       Serial.print(i + 1);
+//       Serial.print(" at address 0x");
+//       Serial.println(addresses[i], HEX);
+//     }
+//   }
+  
+//   Serial.print("Total active sensors: ");
+//   Serial.println(activeCount);
+  
+//   return activeCount > 0;
+// }
 
 void SensorManager::readAllSensors() {
   for (int i = 0; i < NO_OF_UNITS; i++) {
