@@ -12,11 +12,14 @@
 #include <Wire.h>
 
 #define NO_OF_UNITS 2
+#define TCAADDR 0x70
 
 class SensorManager {
 public:
   SensorManager();
   
+  void tcaSelect(uint8_t i);
+
   // Initialize sensors and return the number of active sensors found
   bool initialize();
   
