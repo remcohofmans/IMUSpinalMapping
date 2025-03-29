@@ -544,15 +544,10 @@ void CalibrationManager::calibrateAccelData(int sensorId, float raw_x, float raw
     return;
   }
   
-  // Apply temperature compensation
-  float temp_comp_x = compensateForTemperature(raw_x, calibrationData[sensorId].temp_coef_accel[0], temp, calibrationData[sensorId].temp_ref);
-  float temp_comp_y = compensateForTemperature(raw_y, calibrationData[sensorId].temp_coef_accel[1], temp, calibrationData[sensorId].temp_ref);
-  float temp_comp_z = compensateForTemperature(raw_z, calibrationData[sensorId].temp_coef_accel[2], temp, calibrationData[sensorId].temp_ref);
-  
   // Apply offset and scale calibration
-  cal_x = (temp_comp_x - calibrationData[sensorId].accel_offset[0]) * calibrationData[sensorId].accel_scale[0];
-  cal_y = (temp_comp_y - calibrationData[sensorId].accel_offset[1]) * calibrationData[sensorId].accel_scale[1];
-  cal_z = (temp_comp_z - calibrationData[sensorId].accel_offset[2]) * calibrationData[sensorId].accel_scale[2];
+  cal_x = (raw_x - calibrationData[sensorId].accel_offset[0]) * calibrationData[sensorId].accel_scale[0];
+  cal_y = (raw_y - calibrationData[sensorId].accel_offset[1]) * calibrationData[sensorId].accel_scale[1];
+  cal_z = (raw_z - calibrationData[sensorId].accel_offset[2]) * calibrationData[sensorId].accel_scale[2];
 }
 
 void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_y, float raw_z, 
@@ -565,15 +560,10 @@ void CalibrationManager::calibrateGyroData(int sensorId, float raw_x, float raw_
     return;
   }
   
-  // Apply temperature compensation
-  float temp_comp_x = compensateForTemperature(raw_x, calibrationData[sensorId].temp_coef_gyro[0], temp, calibrationData[sensorId].temp_ref);
-  float temp_comp_y = compensateForTemperature(raw_y, calibrationData[sensorId].temp_coef_gyro[1], temp, calibrationData[sensorId].temp_ref);
-  float temp_comp_z = compensateForTemperature(raw_z, calibrationData[sensorId].temp_coef_gyro[2], temp, calibrationData[sensorId].temp_ref);
-  
   // Calculate with offsets
-  float offset_x = temp_comp_x - calibrationData[sensorId].gyro_offset[0];
-  float offset_y = temp_comp_y - calibrationData[sensorId].gyro_offset[1];
-  float offset_z = temp_comp_z - calibrationData[sensorId].gyro_offset[2];
+  float offset_x = raw_x - calibrationData[sensorId].gyro_offset[0];
+  float offset_y = raw_y - calibrationData[sensorId].gyro_offset[1];
+  float offset_z = raw_z - calibrationData[sensorId].gyro_offset[2];
 
   // Apply scale 
   cal_x = offset_x * calibrationData[sensorId].gyro_scale[0];
