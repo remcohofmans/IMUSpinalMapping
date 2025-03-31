@@ -14,50 +14,59 @@ SensorManager::SensorManager() : activeCount(0) {
 
 void SensorManager::tcaSelect(uint8_t i) {
   if (i > 7) return;  // TCA9548A has 8 channels (0-7)
-  
+  Serial.print("tca selected port: ");
+  Serial.println(i);
   Wire.beginTransmission(TCAADDR);  
+  delay(10);
   Wire.write(1 << i);  // Select the desired channel by sending a byte with the bit corresponding to that channel set to 1
   Wire.endTransmission();
 }
 
 bool SensorManager::initialize() {
-  // Define sensor configuration: {TCA Channel, Sensor Address}
   struct SensorConfig {
     uint8_t channel;
     uint8_t address;
   };
 
-  const SensorConfig sensorConfigs[] = {  // TODO: Impose a fixed length
-    {0, 0x68},  // Sensor 1
-    {0, 0x69},  // Sensor 2
-    {1, 0x68},  // Sensor 3
-    {1, 0x69},  // Sensor 4
-    {2, 0x69}   // Sensor 5
+  const SensorConfig sensorConfigs[] = {
+    {1, 0x68},
+    {1, 0x69},
+    {2, 0x69},
+    {2, 0x69},
+    {2, 0x69}
   };
 
   activeCount = 0;
 
-  for (int i = 0; i < NO_OF_UNITS; i++) {
-    tcaSelect(sensorConfigs[i].channel);  // Select multiplexer channel
+  for (int i = 0; i < NO_OF_UNITS && i < (sizeof(sensorConfigs) / sizeof(sensorConfigs[0])); i++) {
+    Serial.print("Trying sensor ");
+    Serial.print(i + 1);
+    Serial.print(" at channel ");
+    Serial.print(sensorConfigs[i].channel);
+    Serial.print(", address 0x");
+    Serial.println(sensorConfigs[i].address, HEX);
+
+    tcaSelect(sensorConfigs[i].channel);
+    delay(10);
 
     if (icm[i].begin_I2C(sensorConfigs[i].address)) {
       sensorActive[i] = true;
       activeCount++;
-      Serial.print("Sensor Unit ");
-      Serial.print(i + 1);
-      Serial.print(" initialized successfully at address 0x");
-      Serial.println(sensorConfigs[i].address, HEX);
+      Serial.println(" -> SUCCESS");
     } else {
       sensorActive[i] = false;
-      Serial.print("Failed to find ICM-20948 chip for Unit ");
-      Serial.print(i + 1);
-      Serial.print(" at address 0x");
-      Serial.println(sensorConfigs[i].address, HEX);
+      Serial.println(" -> FAILED");
     }
   }
 
-  return (activeCount == NO_OF_UNITS);
+  if (activeCount == 0) {
+    Serial.println("CRITICAL ERROR: No sensors found!");
+    return false;
+  }
+
+  return true;
 }
+
 
 void SensorManager::readAllSensors() {
   for (int i = 0; i < NO_OF_UNITS; i++) {
