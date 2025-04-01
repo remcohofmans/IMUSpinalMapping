@@ -270,6 +270,10 @@ Well-calibrated accelerometers provide accurate gravity vector measurements, ess
 
 ### Magnetometer Calibration: Ellipsoid Fitting
 
+![Raw Magnetometer Data](https://github.com/user-attachments/assets/42d491fd-5cba-4915-9606-83719153071a)
+
+![Calibrated Magnetometer Data](https://github.com/user-attachments/assets/13f9c078-76d4-43d6-aa13-e1ac7e4ffef2)
+
 #### Overview
 The magnetometer calibration uses an advanced ellipsoid fitting technique to correct for both hard and soft iron distortions. This ensures accurate heading measurements regardless of sensor orientation.
 

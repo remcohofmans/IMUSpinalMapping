@@ -139,16 +139,20 @@ void FilterManager::initializeFilters() {
     // This prevents pitch from being affected by device rotation around X-axis
     // When device is rolled 90°, Z approaches 0 while Y becomes large
     // Using sqrt(ay²+az²) ensures stable pitch calculation in all orientations
-    initial.pitch = atan2(-c_ax, sqrt(c_ay * c_ay + c_az * c_az)) * RAD_TO_DEG;
+    initial.pitch = atan2(-c_ax, sqrt(c_ay * c_ay + c_az * c_az));
 
     // Calculate roll as rotation between Y and Z axes
     // Note: This calculation becomes unstable when pitch approaches ±90°!
     // due to gimbal lock inherent in Euler angle representations
+<<<<<<< HEAD
     initial.roll = atan2(c_ay, c_az) * RAD_TO_DEG;
+=======
+    initial.roll = atan2(-c_ay, c_az);
+>>>>>>> 5ebb6b2acab6c4f41c94e1c9d097152aae9f004c
 
     // Tilt-compensated magnetometer yaw
-    float pitch_rad = initial.pitch * DEG_TO_RAD;
-    float roll_rad = initial.roll * DEG_TO_RAD;
+    float pitch_rad = initial.pitch;
+    float roll_rad = initial.roll;
 
     float cos_pitch = cos(pitch_rad);
     float sin_pitch = sin(pitch_rad);
@@ -184,8 +188,8 @@ void FilterManager::initializeFilters() {
     initial.yaw = atan2(-my_h, mx_h) * RAD_TO_DEG + MAGNETIC_DECLINATION;
     initial.yaw = fmod((initial.yaw + 360.0f), 360.0f); // Yaw angle between 0 and 360 degrees -> standard compass convention
     if (initial.yaw > 180.0f) { // Convert to -180 to 180 degree range
-    initial.yaw -= 360.0f;
-}
+      initial.yaw -= 360.0f;
+    }
 
     euler_angles[i] = initial;
 

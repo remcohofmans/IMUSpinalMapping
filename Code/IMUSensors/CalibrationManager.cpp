@@ -232,7 +232,11 @@ void CalibrationManager::calibrateMagnetometers() {
     // Collect samples for ellipsoid fitting
     // If these vars would be put on stack, they would total up to 12K bytes, plus whatever else already on the stack frame
     // The ESP32 task stack is with its 8K bytes limited in size (less than what would be required)
+<<<<<<< HEAD
     const int max_samples = 2500;
+=======
+    const int max_samples = 5000;
+>>>>>>> 5ebb6b2acab6c4f41c94e1c9d097152aae9f004c
     float* mag_x = new float[max_samples];
     float* mag_y = new float[max_samples];
     float* mag_z = new float[max_samples];
