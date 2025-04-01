@@ -55,7 +55,7 @@ public:
                          float temp, float &cal_x, float &cal_y, float &cal_z);
   void calibrateMagData(int sensorId, float raw_x, float raw_y, float raw_z,
                         float &cal_x, float &cal_y, float &cal_z);
-  
+
   // Utility functions
   void printCalibrationData();
 

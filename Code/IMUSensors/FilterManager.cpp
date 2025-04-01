@@ -144,7 +144,7 @@ void FilterManager::initializeFilters() {
     // Calculate roll as rotation between Y and Z axes
     // Note: This calculation becomes unstable when pitch approaches ±90°!
     // due to gimbal lock inherent in Euler angle representations
-    initial.roll = atan2(-c_ay, c_az) * RAD_TO_DEG;
+    initial.roll = atan2(c_ay, c_az) * RAD_TO_DEG;
 
     // Tilt-compensated magnetometer yaw
     float pitch_rad = initial.pitch * DEG_TO_RAD;
@@ -161,9 +161,11 @@ void FilterManager::initializeFilters() {
     // Normalizing the magnetometer vector eliminates magnitude variability, resulting in a unit vector that preserves direction only.
     float mag_norm = sqrt(c_mx * c_mx + c_my * c_my + c_mz * c_mz);
     if (mag_norm > 0.001f) {
-      c_mx /= mag_norm;
-      c_my /= mag_norm;
-      c_mz /= mag_norm;
+      // Single division followed by multiplications is more efficient
+      float inv_mag = 1.0f / mag_norm;
+      c_mx *= inv_mag;
+      c_my *= inv_mag;
+      c_mz *= inv_mag;
     } else {
       // Default to north if magnetometer reading is invalid
       c_mx = 1.0f;
@@ -522,22 +524,10 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
   // A reliable accelerometer should measure approximately 1g when stationary
   float accel_mag = sqrt(ax*ax + ay*ay + az*az);
   bool reliable_accel = (accel_mag > 9.5f && accel_mag < 11.5f);
-  if (!reliable_accel) {  // Accelerometer data is unreliable (may be experiencing external acceleration)
-    // Fallback to gyro-only integration for this update cycle
-    // This will accumulate drift over time, but avoids corruption from accelerometer spikes!
-    euler_angles[sensorId].roll += gx * dt * RAD_TO_DEG;
-    euler_angles[sensorId].pitch += gy * dt * RAD_TO_DEG;
-    euler_angles[sensorId].yaw += gz * dt * RAD_TO_DEG;
-    euler_angles[sensorId].yaw = fmod((euler_angles[sensorId].yaw + 360.0f), 360.0f); // Normalize yaw to -180 to 180 degree range
-    if (euler_angles[sensorId].yaw > 180.0f) {
-        euler_angles[sensorId].yaw -= 360.0f;
-    }
-    return;
-  }
   
   // Calculate accelerometer-based angles (relies on gravity)
   float accel_pitch = atan2(-ax, sqrt(ay*ay + az*az)) * RAD_TO_DEG;
-  float accel_roll = atan2(-ay, az) * RAD_TO_DEG;
+  float accel_roll = atan2(ay, az) * RAD_TO_DEG;
   
   // Check if we're in a static position by examining gyro magnitude
   float gyro_mag = sqrt(gx*gx + gy*gy + gz*gz);
@@ -651,148 +641,225 @@ void FilterManager::updateEulerAngles(int sensorId, float dt) {
 
 void FilterManager::updateQuaternionOrientation(int sensorId, float dt) {
   if (!sensorManager->isSensorActive(sensorId)) return;
-  if (dt <= 0.0f || dt > 1.0f) return; 
-  // Guard: dt too large => might be a glitch
+  if (dt <= 0.0f || isnan(dt)) return;  // Guard against invalid dt
 
-  // 1) Retrieve filtered sensor data
-  float gx = filteredData[sensorId].gyro[0];  // in rad/s
-  float gy = filteredData[sensorId].gyro[1];
-  float gz = filteredData[sensorId].gyro[2];
-  
+  // Get filtered sensor data
   float ax = filteredData[sensorId].accel[0];
   float ay = filteredData[sensorId].accel[1];
   float az = filteredData[sensorId].accel[2];
-  
+  float gx = filteredData[sensorId].gyro[0];
+  float gy = filteredData[sensorId].gyro[1];
+  float gz = filteredData[sensorId].gyro[2];
   float mx = filteredData[sensorId].mag[0];
   float my = filteredData[sensorId].mag[1];
   float mz = filteredData[sensorId].mag[2];
-
-  // 2) Normalization checks
-  float normA = sqrtf(ax*ax + ay*ay + az*az);
-  if (normA > 0.001f) {
-    ax /= normA;
-    ay /= normA;
-    az /= normA;
-  } else {
-    // If no valid accel data, fallback to gyro-only integration
-    ax = ay = 0.0f; 
-    az = 1.0f; // artificial gravity
-  }
-
-  float normM = sqrtf(mx*mx + my*my + mz*mz);
-  if (normM > 0.001f) {
-    mx /= normM;
-    my /= normM;
-    mz /= normM;
-  } else {
-    // If no valid mag data, set to a default "north" vector
-    mx = 1.0f; my = 0.0f; mz = 0.0f;
-  }
   
-  // 3) Current quaternion estimate
+  // Sanity check inputs
+  if (isnan(ax) || isnan(ay) || isnan(az)) return;
+  if (isnan(gx) || isnan(gy) || isnan(gz)) return;
+  if (isnan(mx) || isnan(my) || isnan(mz)) return;
+
+  // Check accelerometer reliability by verifying its magnitude is close to gravity
+  float accel_mag = sqrt(ax*ax + ay*ay + az*az);
+  bool reliable_accel = (accel_mag > 9.5f && accel_mag < 11.5f);
+  
+  // Check if we're in a static position by examining gyro magnitude
+  float gyro_mag = sqrt(gx*gx + gy*gy + gz*gz);
+  bool is_static = (gyro_mag < MOVEMENT_THRESHOLD);
+  
+  // Current quaternion estimate
   float qw = quaternions[sensorId].w;
   float qx = quaternions[sensorId].x;
   float qy = quaternions[sensorId].y;
   float qz = quaternions[sensorId].z;
 
-  // 4) Gyro integration (i.e., dq/dt = 0.5 * q ⊗ w)
-  // Where w = (0, gx, gy, gz), and ⊗ is quaternion multiplication
+  if (is_static) {
+    // When static, update gyro bias estimates using current measurements
+    CalibrationData* calData = calibrationManager->getCalibrationData(sensorId);
+    if (calData) {
+      // Low-pass filter for gyro bias estimation (same as in updateEulerAngles)
+      const float BIAS_SMOOTHING_FACTOR = 0.995f;
+      const float BIAS_LEARNING_RATE = 1.0f - BIAS_SMOOTHING_FACTOR;
+      
+      // Update each axis independently
+      float new_bias_x = BIAS_SMOOTHING_FACTOR * calData->gyro_offset[0] + BIAS_LEARNING_RATE * gx;
+      float new_bias_y = BIAS_SMOOTHING_FACTOR * calData->gyro_offset[1] + BIAS_LEARNING_RATE * gy;
+      float new_bias_z = BIAS_SMOOTHING_FACTOR * calData->gyro_offset[2] + BIAS_LEARNING_RATE * gz;
+      
+      // Prevent extreme bias values that might indicate sensor error rather than drift
+      const float MAX_BIAS_CHANGE = 0.01f;  // in rad/s
+      if (fabs(new_bias_x - calData->gyro_offset[0]) < MAX_BIAS_CHANGE &&
+          fabs(new_bias_y - calData->gyro_offset[1]) < MAX_BIAS_CHANGE &&
+          fabs(new_bias_z - calData->gyro_offset[2]) < MAX_BIAS_CHANGE) {
+        // Only update bias if changes are within reasonable limits
+        calibrationManager->setGyroOffset(sensorId, new_bias_x, new_bias_y, new_bias_z);
+      }
+    }
+  }
+  
+  if (!reliable_accel) {
+    // When accelerometer is unreliable, use gyro-only integration
+    // Quaternion derivative from angular velocity: dq/dt = 0.5 * q ⊗ ω 
+    // Where ω = (0, gx, gy, gz)
+    float qw_dot = -qx*gx - qy*gy - qz*gz;
+    float qx_dot =  qw*gx + qy*gz - qz*gy;
+    float qy_dot =  qw*gy - qx*gz + qz*gx;
+    float qz_dot =  qw*gz + qx*gy - qy*gx;
+    
+    // Simple integration
+    qw += qw_dot * dt;
+    qx += qx_dot * dt;
+    qy += qy_dot * dt;
+    qz += qz_dot * dt;
+    
+    // Normalize resulting quaternion
+    float mag = sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
+    if (mag > 0.0f) {
+      qw /= mag; qx /= mag; qy /= mag; qz /= mag;
+    } else {
+      qw = 1.0f; qx = qy = qz = 0.0f;
+    }
+    
+    // Store result
+    quaternions[sensorId].w = qw;
+    quaternions[sensorId].x = qx;
+    quaternions[sensorId].y = qy;
+    quaternions[sensorId].z = qz;
+    
+    // Update Euler angles for compatibility
+    quaternionToEuler(quaternions[sensorId], euler_angles[sensorId]);
+    return;
+  }
+  
+  // Normalize sensor vectors
+  // Accelerometer normalization
+  float inv_accel_mag = 1.0f / accel_mag;
+  ax *= inv_accel_mag;
+  ay *= inv_accel_mag;
+  az *= inv_accel_mag;
+  
+  // Magnetometer normalization
+  float mag_norm = sqrt(mx*mx + my*my + mz*mz);
+  if (mag_norm > 0.001f) {
+    float inv_mag = 1.0f / mag_norm;
+    mx *= inv_mag;
+    my *= inv_mag;
+    mz *= inv_mag;
+  } else {
+    // Default if magnetometer reading is invalid
+    mx = 1.0f; my = 0.0f; mz = 0.0f;
+  }
+  
+  // Detect magnetic disturbances
+  detectMagneticDisturbance(sensorId, mx, my, mz);
+  bool use_mag = !magDisturbance[sensorId];
+  
+  // Gyro integration (predict step)
   float halfDT = 0.5f * dt;
   
-  // Predict new orientation from gyro alone
-  float qw_dot = -qx*gx - qy*gy - qz*gz;  // qdot.w
-  float qx_dot =  qw*gx + qy*gz - qz*gy;  // qdot.x
-  float qy_dot =  qw*gy - qx*gz + qz*gx;  // qdot.y
-  float qz_dot =  qw*gz + qx*gy - qy*gx;  // qdot.z
+  // Quaternion derivative from angular velocity
+  float qw_dot = -qx*gx - qy*gy - qz*gz;
+  float qx_dot =  qw*gx + qy*gz - qz*gy;
+  float qy_dot =  qw*gy - qx*gz + qz*gx;
+  float qz_dot =  qw*gz + qx*gy - qy*gx;
   
-  // Integrate
+  // Integrate gyro
   qw += qw_dot * halfDT;
   qx += qx_dot * halfDT;
   qy += qy_dot * halfDT;
   qz += qz_dot * halfDT;
-
-  // 5) Gradient descent correction from accel & mag
-  // Steps:
-  //   A) Estimated direction of gravity & magnetic field from current q
-  //   B) Compute the error between measured direction (ax, ay, az), (mx, my, mz) 
-  //      and the estimated direction.  
-  //   C) Apply derivative of the error to adjust quaternion.
-
-  // Reference vectors in Earth frame: 
-  //   Gravity should be (0, 0, 1)
-  //   Magnetic field is (Bx, 0, Bz) after tilt compensation (Madgwick lumps that into a 2D param)
   
-  // Convert quaternion to reference direction of gravity & magnetometer
-  //   (this is effectively rotating the “Earth frame” vector into sensor frame)
-  float vx = 2.0f*(qx*qz - qw*qy);
-  float vy = 2.0f*(qw*qx + qy*qz);
-  float vz = qw*qw - qx*qx - qy*qy + qz*qz; // for gravity
-
-  // For magnetometer, the algorithm uses an intermediate approach:
-  //   Reorients the Earth magnetic field (which should be mostly in XZ-plane for local field)
-  //   There's a more complete form in the official Madgwick code. We'll do simplified.
-
-  // Let’s define reference direction of Earth's magnetic field in sensor frame:
-  float wx = 2.0f*(mx*(0.5f - qy*qy - qz*qz) + my*(qx*qy - qw*qz) + mz*(qx*qz + qw*qy));
-  float wy = 2.0f*(mx*(qx*qy + qw*qz)       + my*(0.5f - qx*qx - qz*qz) + mz*(qy*qz - qw*qx));
-  float wz = 2.0f*(mx*(qx*qz - qw*qy)       + my*(qy*qz + qw*qx)        + mz*(0.5f - qx*qx - qy*qy));
-
-  // The “desired” direction of gravity is (ax, ay, az) 
-  // The “desired” direction of mag is (mx, my, mz)
-  // => Error in sensor frame = cross(estimated, measured)
+  // Adaptive filter coefficient based on motion state
+  float beta;
+  if (is_static) {
+    // When static, rely more on accelerometer/magnetometer
+    beta = 0.1f;  // Higher correction weight when static
+  } else {
+    // When moving, trust gyro more
+    beta = 0.035f;  // Lower correction weight when moving
+  }
   
-  // Gravity error
+  // Reference directions of fields in earth frame
+  // For gravity
+  float vx = 2.0f * (qx*qz - qw*qy);
+  float vy = 2.0f * (qw*qx + qy*qz);
+  float vz = qw*qw - qx*qx - qy*qy + qz*qz;
+  
+  // Error is cross product between estimated direction and measured direction of gravity
   float ex = (ay * vz - az * vy);
   float ey = (az * vx - ax * vz);
   float ez = (ax * vy - ay * vx);
-
-  // Magnetic error
-  float ex_m = (my * wz - mz * wy);
-  float ey_m = (mz * wx - mx * wz);
-  float ez_m = (mx * wy - my * wx);
-
-  // Combine them
-  ex += ex_m;
-  ey += ey_m;
-  ez += ez_m;
-
-  // 6) Apply a gain, “beta,” to scale the correction 
-  float beta = 0.05f;  // typical range: 0.01 -> 0.1
-  // If you see slow convergence or big noise, raise or lower this accordingly.
-
-  // Adjust the quaternion derivative
+  
+  // Apply magnetometer correction only if reliable
+  if (use_mag) {
+    // Compute reference direction of earth's magnetic field in sensor frame
+    // Rotate earth's magnetic field to sensor frame
+    float hx = 2.0f*(mx*(0.5f - qy*qy - qz*qz) + my*(qx*qy - qw*qz) + mz*(qx*qz + qw*qy));
+    float hy = 2.0f*(mx*(qx*qy + qw*qz) + my*(0.5f - qx*qx - qz*qz) + mz*(qy*qz - qw*qx));
+    float hz = 2.0f*(mx*(qx*qz - qw*qy) + my*(qy*qz + qw*qx) + mz*(0.5f - qx*qx - qy*qy));
+    
+    // Magnetic error is cross product between estimated and measured directions
+    float ex_m = (my * hz - mz * hy);
+    float ey_m = (mz * hx - mx * hz);
+    float ez_m = (mx * hy - my * hx);
+    
+    // Add magnetic error to accelerometer error
+    ex += ex_m;
+    ey += ey_m;
+    ez += ez_m;
+  }
+  
+  // Apply feedback from error
   qw_dot = -beta * ex;
   qx_dot = -beta * ey;
   qy_dot = -beta * ez;
-  qz_dot = 0.0f; // Some versions skip the last component or do a different approach. 
-                 // The official Madgwick uses a 2D mag approach. This is a simplified version.
-
-  // Integrate the correction
+  qz_dot = 0.0f;  // Often simplified or omitted in implementations
+  
+  // Integrate correction
   qw += qw_dot * dt;
   qx += qx_dot * dt;
   qy += qy_dot * dt;
   qz += qz_dot * dt;
-
-  // 7) Normalize the updated quaternion
-  float normQ = sqrtf(qw*qw + qx*qx + qy*qy + qz*qz);
-  if (normQ > 0.0f) {
-    qw /= normQ;
-    qx /= normQ;
-    qy /= normQ;
-    qz /= normQ;
+  
+  // Normalize quaternion
+  float norm = sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
+  if (norm > 0.0f) {
+    qw /= norm;
+    qx /= norm;
+    qy /= norm;
+    qz /= norm;
   } else {
-    // fallback if zero
+    // Fallback to identity quaternion
     qw = 1.0f; qx = qy = qz = 0.0f;
   }
-
-  // 8) Store updated quaternion
+  
+  // Store updated quaternion
   quaternions[sensorId].w = qw;
   quaternions[sensorId].x = qx;
   quaternions[sensorId].y = qy;
   quaternions[sensorId].z = qz;
-
-  // 9) Convert to Euler angles for convenience
+  
+  // Update Euler angles for compatibility
   quaternionToEuler(quaternions[sensorId], euler_angles[sensorId]);
+  
+  // Sanity check outputs
+  if (isnan(euler_angles[sensorId].roll)) {
+    float accel_roll = atan2(ay, az) * RAD_TO_DEG;
+    euler_angles[sensorId].roll = accel_roll;
+    // Recalculate quaternion
+    eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
+  }
+  if (isnan(euler_angles[sensorId].pitch)) {
+    float accel_pitch = atan2(-ax, sqrt(ay*ay + az*az)) * RAD_TO_DEG;
+    euler_angles[sensorId].pitch = accel_pitch;
+    // Recalculate quaternion
+    eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
+  }
+  if (isnan(euler_angles[sensorId].yaw)) {
+    euler_angles[sensorId].yaw = 0.0f;
+    // Recalculate quaternion
+    eulerToQuaternion(euler_angles[sensorId], quaternions[sensorId]);
+  }
 }
 
 void FilterManager::configureAxisMapping(int xMap, int yMap, int zMap, int xSign, int ySign, int zSign) {

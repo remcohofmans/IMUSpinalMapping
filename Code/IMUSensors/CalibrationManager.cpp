@@ -76,8 +76,6 @@ void CalibrationManager::calibrateGyros() {
     calibrationData[i].gyro_scale[1] = 1.0f;
     calibrationData[i].gyro_scale[2] = 1.0f;
 
-    Serial.print("Written x-scale component to struct while calibrating: "); Serial.println(calibrationData[i].gyro_scale[0]);
-
     Serial.println("Gyroscope scale factors for Unit " + String(i + 1) + ":");
     Serial.print("X: "); Serial.print(calibrationData[i].gyro_scale[0], 6);
     Serial.print(" Y: "); Serial.print(calibrationData[i].gyro_scale[1], 6);
@@ -234,12 +232,14 @@ void CalibrationManager::calibrateMagnetometers() {
     // Collect samples for ellipsoid fitting
     // If these vars would be put on stack, they would total up to 12K bytes, plus whatever else already on the stack frame
     // The ESP32 task stack is with its 8K bytes limited in size (less than what would be required)
-    const int max_samples = 500;
+    const int max_samples = 2500;
     float* mag_x = new float[max_samples];
     float* mag_y = new float[max_samples];
     float* mag_z = new float[max_samples];
     int sample_count = 0;
     bool done = false;
+
+    Serial.println("X,Y,Z");
     
     while (!done && sample_count < max_samples) {
       if (Serial.available()) {
@@ -272,29 +272,44 @@ void CalibrationManager::calibrateMagnetometers() {
       }
       delay(10);
     }
-    
     Serial.println("\nCollected " + String(sample_count) + " samples for Unit " + String(unit + 1));
     
     // Find min and max for each axis
-    float min_x = mag_x[0], max_x = mag_x[0];
-    float min_y = mag_y[0], max_y = mag_y[0];
-    float min_z = mag_z[0], max_z = mag_z[0];
-    
-    for (int i = 1; i < sample_count; i++) {
-      if (mag_x[i] < min_x) min_x = mag_x[i];
-      if (mag_x[i] > max_x) max_x = mag_x[i];
-      
-      if (mag_y[i] < min_y) min_y = mag_y[i];
-      if (mag_y[i] > max_y) max_y = mag_y[i];
-      
-      if (mag_z[i] < min_z) min_z = mag_z[i];
-      if (mag_z[i] > max_z) max_z = mag_z[i];
+    float min_x, max_x;
+    float min_y, max_y;
+    float min_z, max_z;
+
+    // Calculate mean for each axis
+    float sum_x, sum_y, sum_z;
+
+    for(int i = 0; i < sample_count; i++) {
+      sum_x += mag_x[i];
+      sum_y += mag_y[i]; 
+      sum_z += mag_z[i];
     }
+
+    float mean_x = sum_x / sample_count;
+    float mean_y = sum_y / sample_count;
+    float mean_z = sum_z / sample_count;
+    
+    // for (int i = 1; i < sample_count; i++) {
+    //   if (mag_x[i] < min_x) min_x = mag_x[i];
+    //   if (mag_x[i] > max_x) max_x = mag_x[i];
+      
+    //   if (mag_y[i] < min_y) min_y = mag_y[i];
+    //   if (mag_y[i] > max_y) max_y = mag_y[i];
+      
+    //   if (mag_z[i] < min_z) min_z = mag_z[i];
+    //   if (mag_z[i] > max_z) max_z = mag_z[i];
+    // }
     
     // Calculate hard iron offsets (center of ellipsoid)
-    calibrationData[unit].mag_offset[0] = (min_x + max_x) / 2.0f;
-    calibrationData[unit].mag_offset[1] = (min_y + max_y) / 2.0f;
-    calibrationData[unit].mag_offset[2] = (min_z + max_z) / 2.0f;
+    // calibrationData[unit].mag_offset[0] = (min_x + max_x) / 2.0f;
+    // calibrationData[unit].mag_offset[1] = (min_y + max_y) / 2.0f;
+    // calibrationData[unit].mag_offset[2] = (min_z + max_z) / 2.0f;
+    calibrationData[unit].mag_offset[0] = mean_x;
+    calibrationData[unit].mag_offset[1] = mean_y;
+    calibrationData[unit].mag_offset[2] = mean_z;
     
     // Create centered data for covariance calculation
     float* centered_x = new float[sample_count];
@@ -501,42 +516,42 @@ void CalibrationManager::eigenDecomposition(float cov[3][3], float eigenvalues[3
   eigenvalues[2] = a[2][2];
 }
 
-  void CalibrationManager::calibrateTemperatures() {
-    Serial.println("\n=== Temperature Compensation Calibration ===");
-    Serial.println("This calibration collects reference temperature data for each sensor unit.");
-    Serial.println("We'll collect data at room temperature now.");
+void CalibrationManager::calibrateTemperatures() {
+  Serial.println("\n=== Temperature Compensation Calibration ===");
+  Serial.println("This calibration collects reference temperature data for each sensor unit.");
+  Serial.println("We'll collect data at room temperature now.");
+  
+  for (int unit = 0; unit < NO_OF_UNITS; unit++) {
+    if (!sensorManager->isSensorActive(unit)) continue;
     
-    for (int unit = 0; unit < NO_OF_UNITS; unit++) {
-      if (!sensorManager->isSensorActive(unit)) continue;
-      
-      // Get reference temperature
-      float temp = sensorManager->getTemperature(unit);
-      
-      calibrationData[unit].temp_ref = temp;
-      
-      Serial.println("Unit " + String(unit + 1) + " reference temperature: " + String(calibrationData[unit].temp_ref) + " °C");
-      
-      // Using default values for temperature coefficients
-      for (int i = 0; i < 3; i++) {
-        calibrationData[unit].temp_coef_accel[i] = 0.0;  // Set to 0: no temperature compensation
-        calibrationData[unit].temp_coef_gyro[i] = 0.0;   
-      }
-      
-      Serial.println("Temperature calibration completed for Unit " + String(unit + 1));
+    // Get reference temperature
+    float temp = sensorManager->getTemperature(unit);
+    
+    calibrationData[unit].temp_ref = temp;
+    
+    Serial.println("Unit " + String(unit + 1) + " reference temperature: " + String(calibrationData[unit].temp_ref) + " °C");
+    
+    // Using default values for temperature coefficients
+    for (int i = 0; i < 3; i++) {
+      calibrationData[unit].temp_coef_accel[i] = 0.0;  // Set to 0: no temperature compensation
+      calibrationData[unit].temp_coef_gyro[i] = 0.0;   
     }
     
-    Serial.println("\nFor full temperature calibration, you would need to collect data at different temperatures and calculate coefficients.");
-    Serial.println("This is just a simplified version that records the reference values.");
-    
-    Serial.println("\nAll temperature sensors have been calibrated.");
+    Serial.println("Temperature calibration completed for Unit " + String(unit + 1));
   }
+  
+  Serial.println("\nFor full temperature calibration, you would need to collect data at different temperatures and calculate coefficients.");
+  Serial.println("This is just a simplified version that records the reference values.");
+  
+  Serial.println("\nAll temperature sensors have been calibrated.");
+}
 
-  float CalibrationManager::compensateForTemperature(float value, float temp_coef, float temp, float temp_ref) {
-    return value - (temp - temp_ref) * temp_coef;
-  }
+float CalibrationManager::compensateForTemperature(float value, float temp_coef, float temp, float temp_ref) {
+  return value - (temp - temp_ref) * temp_coef;
+}
 
 void CalibrationManager::calibrateAccelData(int sensorId, float raw_x, float raw_y, float raw_z, 
-                                          float temp, float &cal_x, float &cal_y, float &cal_z) {
+                                        float temp, float &cal_x, float &cal_y, float &cal_z) {
   if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) {
     cal_x = raw_x;
     cal_y = raw_y;
@@ -649,7 +664,19 @@ void CalibrationManager::printCalibrationData() {
     Serial.print(" Y: "); Serial.print(calibrationData[unit].mag_scale[1], 4);
     Serial.print(" Z: "); Serial.print(calibrationData[unit].mag_scale[2], 4);
     Serial.println();
-    
+
+    Serial.println("Magnetometer soft iron correction matrix:");
+    for (int i = 0; i < 3; i++) {
+    Serial.print("[ ");
+    for (int j = 0; j < 3; j++) {
+      Serial.print(calibrationData[unit].soft_iron_matrix[i][j], 4);
+      Serial.print(" ");
+    }
+    Serial.println("]");
+  }
+  
+  Serial.println();
+
     Serial.println("Temperature reference: " + String(calibrationData[unit].temp_ref) + " °C");
     
     // Optional: print temperature coefficients

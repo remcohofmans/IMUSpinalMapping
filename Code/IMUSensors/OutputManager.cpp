@@ -42,30 +42,6 @@ void OutputManager::printSensorData() {
 }
 
 void OutputManager::printSensorDataForUnit(int sensorId) {
-  // Get raw sensor data
-  float raw_accel_x, raw_accel_y, raw_accel_z;
-  float raw_gyro_x, raw_gyro_y, raw_gyro_z;
-  float raw_mag_x, raw_mag_y, raw_mag_z;
-  
-  sensorManager->getRawAccel(sensorId, raw_accel_x, raw_accel_y, raw_accel_z);
-  sensorManager->getRawGyro(sensorId, raw_gyro_x, raw_gyro_y, raw_gyro_z);
-  sensorManager->getRawMag(sensorId, raw_mag_x, raw_mag_y, raw_mag_z);
-  float temp = sensorManager->getTemperature(sensorId);
-  
-  // Get calibrated and filtered sensor data
-  float cal_accel_x, cal_accel_y, cal_accel_z;
-  float cal_gyro_x, cal_gyro_y, cal_gyro_z;
-  float cal_mag_x, cal_mag_y, cal_mag_z;
-  
-  // Apply calibration
-  calibrationManager->calibrateAccelData(sensorId, raw_accel_x, raw_accel_y, raw_accel_z, 
-                                      temp, cal_accel_x, cal_accel_y, cal_accel_z);
-                       
-  calibrationManager->calibrateGyroData(sensorId, raw_gyro_x, raw_gyro_y, raw_gyro_z, 
-                                     temp, cal_gyro_x, cal_gyro_y, cal_gyro_z);
-                    
-  calibrationManager->calibrateMagData(sensorId, raw_mag_x, raw_mag_y, raw_mag_z, 
-                                   cal_mag_x, cal_mag_y, cal_mag_z);
   
   // Get filtered data
   float filtered_accel_x, filtered_accel_y, filtered_accel_z;
@@ -183,10 +159,19 @@ void OutputManager::printSensorDataForUnit(int sensorId) {
 //   Serial.print(raw_mag_mag, 2);
 //   Serial.print(" Calibrated: ");
 //   Serial.println(cal_mag_mag, 2);
+  
   // Print in comma-separated format for the plotter
-  Serial.print(roll);
+  // Serial.print(roll);
+  // Serial.print(",");
+  // Serial.print(pitch);
+  // Serial.print(",");
+  // Serial.print(yaw);
+  // Serial.print(",");
+  // Serial.println(filtered_mag_x);
+
+  Serial.print(filtered_mag_x);
   Serial.print(",");
-  Serial.print(pitch);
+  Serial.print(filtered_mag_y);
   Serial.print(",");
-  Serial.println(yaw);
+  Serial.println(filtered_mag_z);
 }
