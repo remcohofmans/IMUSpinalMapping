@@ -5,6 +5,12 @@
 
 #include "SensorManager.h"
 
+#if defined(ADAFRUIT_SENSOR_CALIBRATION_USE_EEPROM)
+  Adafruit_Sensor_Calibration_EEPROM* calibrations[NO_OF_UNITS];
+#else
+  Adafruit_Sensor_Calibration_SDFat* calibrations[NO_OF_UNITS];
+#endif
+
 SensorManager::SensorManager() : activeCount(0) {
   // Initialize sensorActive array
   for (int i = 0; i < NO_OF_UNITS; i++) {
@@ -23,24 +29,18 @@ void SensorManager::tcaSelect(uint8_t i) {
 }
 
 bool SensorManager::initialize() {
-  struct SensorConfig {
-    uint8_t channel;
-    uint8_t address;
-  };
 
   const SensorConfig sensorConfigs[] = {
     {1, 0x68},
     {1, 0x69},
+    {2, 0x68},
     {2, 0x69},
-    {2, 0x69},
-    {2, 0x69}
+    {3, 0x69}
   };
-
-  activeCount = 0;
 
   for (int i = 0; i < NO_OF_UNITS && i < (sizeof(sensorConfigs) / sizeof(sensorConfigs[0])); i++) {
     Serial.print("Trying sensor ");
-    Serial.print(i + 1);
+    Serial.print(i + 1); 
     Serial.print(" at channel ");
     Serial.print(sensorConfigs[i].channel);
     Serial.print(", address 0x");
@@ -54,9 +54,13 @@ bool SensorManager::initialize() {
       activeCount++;
       Serial.println(" -> SUCCESS");
     } else {
-      sensorActive[i] = false;
+      sensorActive[i] = false;  // Re-assure sensor is deemed inactive
       Serial.println(" -> FAILED");
     }
+
+    accelerometers[i] = icm[i].getAccelerometerSensor();
+    gyroscopes[i] = icm[i].getGyroSensor();
+    magnetometers[i] = icm[i].getMagnetometerSensor();
   }
 
   if (activeCount == 0) {
@@ -67,11 +71,10 @@ bool SensorManager::initialize() {
   return true;
 }
 
-
 void SensorManager::readAllSensors() {
   for (int i = 0; i < NO_OF_UNITS; i++) {
     if (!sensorActive[i]) continue;
-    
+
     sensors_event_t accel, gyro, mag, temp;
     icm[i].getEvent(&accel, &gyro, &temp, &mag);
     
@@ -85,8 +88,8 @@ void SensorManager::readAllSensors() {
     sensorData[i].gyro[2] = gyro.gyro.z;
     
     sensorData[i].mag[0] = mag.magnetic.x;
-    sensorData[i].mag[1] = mag.magnetic.y;
-    sensorData[i].mag[2] = mag.magnetic.z;
+    sensorData[i].mag[1] = -mag.magnetic.y;
+    sensorData[i].mag[2] = -mag.magnetic.z;
     
     sensorData[i].temp = temp.temperature;
 
@@ -171,7 +174,7 @@ void SensorManager::configureForNormalOperation() {
   for (int i = 0; i < NO_OF_UNITS; i++) {
     if (!sensorActive[i]) continue;
     
-    icm[i].setAccelRange(ICM20948_ACCEL_RANGE_4_G);
+    icm[i].setAccelRange(ICM20948_ACCEL_RANGE_2_G);
     icm[i].setGyroRange(ICM20948_GYRO_RANGE_1000_DPS);
     icm[i].setMagDataRate(AK09916_MAG_DATARATE_100_HZ);
   }

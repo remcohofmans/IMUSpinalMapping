@@ -11,7 +11,7 @@ OutputManager::OutputManager()
     calibrationManager(nullptr),
     filterManager(nullptr),
     lastPrintTime(0),
-    outputRate(2000) // Default to 50ms/0.05s output rate
+    outputRate(100) // Default to 50ms/0.05s output rate
 {
 }
 
@@ -56,122 +56,24 @@ void OutputManager::printSensorDataForUnit(int sensorId) {
   float roll, pitch, yaw;
   if(sensorId==0) filterManager->getOrientation(sensorId, roll, pitch, yaw);
   
-//   // Print data
-//   Serial.println("\n===========================");
-//   Serial.println("Sensor Unit: " + String(sensorId + 1));
-//   Serial.print("Temperature: ");
-//   Serial.print(temp);
-//   Serial.println(" °C");
-  
-//   // Accelerometer data
-//   Serial.println("\nAccelerometer (m/s²):");
-//   Serial.print("  Raw: X=");
-//   Serial.print(raw_accel_x, 3);
-//   Serial.print(" Y=");
-//   Serial.print(raw_accel_y, 3);
-//   Serial.print(" Z=");
-//   Serial.println(raw_accel_z, 3);
-  
-//   Serial.print("  Calibrated: X=");
-//   Serial.print(cal_accel_x, 3);
-//   Serial.print(" Y=");
-//   Serial.print(cal_accel_y, 3);
-//   Serial.print(" Z=");
-//   Serial.println(cal_accel_z, 3);
-  
-//   Serial.print("  Filtered: X=");
-//   Serial.print(filtered_accel_x, 3);
-//   Serial.print(" Y=");
-//   Serial.print(filtered_accel_y, 3);
-//   Serial.print(" Z=");
-//   Serial.println(filtered_accel_z, 3);
-  
-//   // Gyroscope data
-//   Serial.println("\nGyroscope (rad/s):");
-//   Serial.print("  Raw: X=");
-//   Serial.print(raw_gyro_x, 4);
-//   Serial.print(" Y=");
-//   Serial.print(raw_gyro_y, 4);
-//   Serial.print(" Z=");
-//   Serial.println(raw_gyro_z, 4);
-  
-//   Serial.print("  Calibrated: X=");
-//   Serial.print(cal_gyro_x, 4);
-//   Serial.print(" Y=");
-//   Serial.print(cal_gyro_y, 4);
-//   Serial.print(" Z=");
-//   Serial.println(cal_gyro_z, 4);
-  
-//   Serial.print("  Filtered: X=");
-//   Serial.print(filtered_gyro_x, 4);
-//   Serial.print(" Y=");
-//   Serial.print(filtered_gyro_y, 4);
-//   Serial.print(" Z=");
-//   Serial.println(filtered_gyro_z, 4);
-  
-//   // Magnetometer data
-//   Serial.println("\nMagnetometer (uT):");
-//   Serial.print("  Raw: X=");
-//   Serial.print(raw_mag_x, 2);
-//   Serial.print(" Y=");
-//   Serial.print(raw_mag_y, 2);
-//   Serial.print(" Z=");
-//   Serial.println(raw_mag_z, 2);
-  
-//   Serial.print("  Calibrated: X=");
-//   Serial.print(cal_mag_x, 2);
-//   Serial.print(" Y=");
-//   Serial.print(cal_mag_y, 2);
-//   Serial.print(" Z=");
-//   Serial.println(cal_mag_z, 2);
-  
-//   Serial.print("  Filtered: X=");
-//   Serial.print(filtered_mag_x, 2);
-//   Serial.print(" Y=");
-//   Serial.print(filtered_mag_y, 2);
-//   Serial.print(" Z=");
-//   Serial.println(filtered_mag_z, 2);
-  
-//   // Orientation from complementary filter
-//   Serial.println("\nOrientation (degrees):");
-//   Serial.print("  Roll (X): ");
-//   Serial.print(roll, 1);
-//   Serial.print(" Pitch (Y): ");
-//   Serial.print(pitch, 1);
-//   Serial.print(" Yaw (Z): ");
-//   Serial.println(yaw, 1);
-  
-//   // Calculate magnitude to verify calibration
-//   float raw_accel_mag = sqrt(sq(raw_accel_x) + sq(raw_accel_y) + sq(raw_accel_z));
-//   float cal_accel_mag = sqrt(sq(cal_accel_x) + sq(cal_accel_y) + sq(cal_accel_z));
-  
-//   Serial.println("\nAccel Magnitude (should be ~9.8 m/s² when stationary):");
-//   Serial.print("  Raw: ");
-//   Serial.print(raw_accel_mag, 3);
-//   Serial.print(" Calibrated: ");
-//   Serial.println(cal_accel_mag, 3);
-  
-//   float raw_mag_mag = sqrt(sq(raw_mag_x) + sq(raw_mag_y) + sq(raw_mag_z));
-//   float cal_mag_mag = sqrt(sq(cal_mag_x) + sq(cal_mag_y) + sq(cal_mag_z));
-  
-//   Serial.println("Mag Magnitude (should be constant regardless of orientation):");
-//   Serial.print("  Raw: ");
-//   Serial.print(raw_mag_mag, 2);
-//   Serial.print(" Calibrated: ");
-//   Serial.println(cal_mag_mag, 2);
-  
-  // Print in comma-separated format for the plotter
-  // Serial.print(roll);
-  // Serial.print(",");
-  // Serial.print(pitch);
-  // Serial.print(",");
-  // Serial.print(yaw);
-  // Serial.print(",");
-  // Serial.println(filtered_mag_x);
+  // Print data
+  Serial.println("\n===========================");
+  Serial.println("Sensor Unit: " + String(sensorId + 1));
+  Serial.print("Orientation: ");
+  Serial.print(yaw);
+  Serial.print(", ");
+  Serial.print(pitch);
+  Serial.print(", ");
+  Serial.println(roll);
 
-  Serial.print(filtered_mag_x);
-  Serial.print(",");
-  Serial.print(filtered_mag_y);
-  Serial.print(",");
-  Serial.println(filtered_mag_z);
+  // float qw, qx, qy, qz;
+  // filter.getQuaternion(&qw, &qx, &qy, &qz);
+  // Serial.print("Quaternion: ");
+  // Serial.print(qw, 3);
+  // Serial.print(", ");
+  // Serial.print(qx, 3);
+  // Serial.print(", ");
+  // Serial.print(qy, 3);
+  // Serial.print(", ");
+  // Serial.println(qz, 3);
 }
