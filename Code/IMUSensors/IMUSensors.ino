@@ -74,7 +74,7 @@ void setup(void) {
   }
   
   // Try to load calibration data from EEPROM
-  if (!storageManager.loadCalibrationFromEEPROM()) {
+  if (!storageManager.loadCalibration()) {
     Serial.println("No valid calibration data found in EEPROM");
   } else {
     Serial.println("Calibration data loaded from EEPROM");
@@ -94,7 +94,7 @@ void setup(void) {
   
   if (response == 'Y' || response == 'y') {
     calibrationManager.performFullCalibration();
-    storageManager.saveCalibrationToEEPROM();
+    storageManager.saveCalibration();
   } else {
     Serial.println("Using existing calibration values");
   }
