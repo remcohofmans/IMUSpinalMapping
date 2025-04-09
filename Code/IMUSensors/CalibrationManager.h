@@ -58,8 +58,6 @@ public:
 
   // Utility functions
   void printCalibrationData();
-
-  void transformSensorAxes(float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]);
   
   // Access calibration data (for storage)
   CalibrationData* getCalibrationData(int sensorId);

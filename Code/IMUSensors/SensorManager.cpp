@@ -35,7 +35,7 @@ bool SensorManager::initialize() {
     {1, 0x69},
     {2, 0x68},
     {2, 0x69},
-    {3, 0x69}
+    {3, 0x69},
   };
 
   for (int i = 0; i < NO_OF_UNITS && i < (sizeof(sensorConfigs) / sizeof(sensorConfigs[0])); i++) {

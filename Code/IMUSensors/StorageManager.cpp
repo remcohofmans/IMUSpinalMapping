@@ -33,14 +33,15 @@ void StorageManager::initialize(CalibrationManager* calMgr) {
   Serial.println(requiredSize);
 }
 
-// CRC16 calculation function
+// CRC16-MODBUS algorithm implementation for error detection: updates a running CRC value with a new byte of data
 uint16_t StorageManager::crc16_update(uint16_t crc, uint8_t a) {
-  crc ^= a;
+  crc ^= a; //XOR the input byte with the current CRC value
+
   for (int i = 0; i < 8; ++i) {
     if (crc & 1)
-      crc = (crc >> 1) ^ 0xA001;
+      crc = (crc >> 1) ^ 0xA001;  // CRC is shifted right and XORed with polynomial value 0xA001
     else
-      crc = (crc >> 1);
+      crc = (crc >> 1); // CRC is shifted right
   }
   return crc;
 }
@@ -60,34 +61,27 @@ bool StorageManager::saveCalibration() {
     return false;
   }
 
-  // Calculate size excluding CRC
-  size_t payloadSize = (NO_OF_UNITS * sizeof(CalibrationData));
-  size_t headerSize = 2;
-  size_t CRCSize = 2;
-  size_t totalSize = headerSize + payloadSize + CRCSize;
-  // Define the static member
-  const size_t EEPROM_SIZE = totalSize;
-
-  // Create a buffer for the data
-  uint8_t* buffer = new uint8_t[totalSize];
+  // Create a buffer for the data (allocate dynamic memory)
+  uint8_t* buffer = new uint8_t[TOTAL_SIZE];
   if (!buffer) {
     Serial.println("Error: Failed to allocate buffer for EEPROM data");
     return false;
   }
   
-  // Clear buffer
-  memset(buffer, 0, totalSize);
+  // Initialize buffer by filling it with zeros to ensure clean state before data insertion
+  memset(buffer, 0, TOTAL_SIZE);   
 
   // Write magic header
   buffer[0] = 0x75;
   buffer[1] = 0x54;
 
-  // Copy calibration data
-  memcpy(buffer + headerSize, allCalData, payloadSize);
+  // Copy calibration data from source (allCalData) to destination buffer
+  // at offset headerSize, transferring payloadSize bytes of data
+    memcpy(buffer + HEADER_SIZE, allCalData, PAYLOAD_SIZE);
 
   // Calculate CRC
-  uint16_t crc = 0xFFFF;
-  for (size_t i = 0; i < (headerSize + payloadSize); i++) {
+  uint16_t crc = 0xFFFF;  // 65,535 decimal
+  for (size_t i = 0; i < DATA_SIZE; i++) {
     crc = crc16_update(crc, buffer[i]);
   }
 
@@ -95,11 +89,12 @@ bool StorageManager::saveCalibration() {
   Serial.println(crc, HEX);
 
   // Add CRC to the end
-  buffer[headerSize + payloadSize] = crc & 0xFF;
-  buffer[headerSize + payloadSize + 1] = crc >> 8;
+  // Store CRC in Little-Endian Order
+  buffer[DATA_SIZE] = crc & 0xFF;  // Masks everything except the lowest 8 bits of crc
+  buffer[DATA_SIZE + 1] = crc >> 8;  // Shifts the bits 8 positions to the right, leaving the highest 8 bits
 
   // Write to EEPROM
-  for (size_t i = 0; i < totalSize; i++) {
+  for (size_t i = 0; i < TOTAL_SIZE; ++i) {
     EEPROM.write(EEPROM_ADDR_CALIBRATION + i, buffer[i]);
   }
 
@@ -127,18 +122,19 @@ bool StorageManager::loadCalibration() {
   Serial.println("Loading calibration from EEPROM...");
 
   // Calculate total size
-  size_t dataSize = 2 + (NO_OF_UNITS * sizeof(CalibrationData)); // Magic bytes + actual data
-  size_t totalSize = dataSize + 2; // Data + CRC
+  size_t payloadSize = NO_OF_UNITS * sizeof(CalibrationData);
+  size_t headerSize = 2;
+  size_t dataSize = HEADER_SIZE + PAYLOAD_SIZE; // Magic bytes + actual data
   
   // Create buffer for EEPROM data
-  uint8_t* buffer = new uint8_t[totalSize];
+  uint8_t* buffer = new uint8_t[TOTAL_SIZE];
   if (!buffer) {
     Serial.println("Error: Failed to allocate buffer for EEPROM data");
     return false;
   }
 
   // Read from EEPROM
-  for (size_t i = 0; i < totalSize; i++) {
+  for (size_t i = 0; i < TOTAL_SIZE; i++) {
     buffer[i] = EEPROM.read(EEPROM_ADDR_CALIBRATION + i);
   }
 
@@ -150,10 +146,10 @@ bool StorageManager::loadCalibration() {
   }
 
   // Verify CRC
-  uint16_t storedCrc = (buffer[dataSize + 1] << 8) | buffer[dataSize];
+  uint16_t storedCrc = (buffer[DATA_SIZE + 1] << 8) | buffer[DATA_SIZE];
   uint16_t calculatedCrc = 0xFFFF;
   
-  for (size_t i = 0; i < dataSize; i++) {
+  for (size_t i = 0; i < DATA_SIZE; i++) {
     calculatedCrc = crc16_update(calculatedCrc, buffer[i]);
   }
 
@@ -168,7 +164,7 @@ bool StorageManager::loadCalibration() {
 
   // Extract calibration data
   CalibrationData* calData = new CalibrationData[NO_OF_UNITS];
-  memcpy(calData, buffer + 2, NO_OF_UNITS * sizeof(CalibrationData));
+  memcpy(calData, buffer + HEADER_SIZE, PAYLOAD_SIZE);
 
   // Set calibration data for each active sensor
   for (int i = 0; i < NO_OF_UNITS; i++) {

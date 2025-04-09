@@ -841,22 +841,6 @@ void CalibrationManager::printCalibrationData() {
   }
 }
 
-void CalibrationManager::transformSensorAxes(float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]) {
-
-  // Store original values
-  float original[3] = { x, y, z };
-
-  // Remap axes according to mapping and signs
-  x = original[axisMapping[0]] * axisSigns[0];
-  y = original[axisMapping[1]] * axisSigns[1];
-  z = original[axisMapping[2]] * axisSigns[2];
-
-  // Serial.print("Output values axes: x="); Serial.print(x, 6);
-  // Serial.print(", y="); Serial.print(y, 6);
-  // Serial.print(", z="); Serial.println(z, 6);
-  // Serial.println("=====================================");
-}
-
 CalibrationData *CalibrationManager::getCalibrationData(int sensorId) {
   if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) return nullptr;
 
