@@ -6,13 +6,15 @@
 #ifndef SENSOR_MANAGER_H
 #define SENSOR_MANAGER_H
 
-#include <Adafruit_ICM20X.h>
-#include <Adafruit_ICM20948.h>
+#include "Adafruit_ICM20948.h"
+#include <Adafruit_Sensor_Calibration.h>
 #include <Adafruit_Sensor.h>
+#include <Adafruit_AHRS.h>  // Add this include
 #include <Wire.h>
 
-#define NO_OF_UNITS 2
+#define NO_OF_UNITS 1
 #define TCAADDR 0x70
+
 
 class SensorManager {
 public:
@@ -42,7 +44,6 @@ public:
   void configureForNormalOperation();
 
 private:
-  Adafruit_ICM20948 icm[NO_OF_UNITS];
   bool sensorActive[NO_OF_UNITS];
   int activeCount;
   
@@ -54,7 +55,21 @@ private:
     float temp;     // Temperature
     unsigned long timestamp; 
   };
+
+  struct SensorConfig {
+    uint8_t channel;
+    uint8_t address;
+  };
   
+  // Initialize ICM20948 IMU sensors
+  Adafruit_ICM20948 icm[NO_OF_UNITS];
+
+  // Create pointers to its sensor modalities: accelerometer, gyroscope, and magnetometer
+  // (these pointers allow access to sensor data using the Adafruit Unified Sensor API)
+  Adafruit_Sensor* accelerometers[NO_OF_UNITS];
+  Adafruit_Sensor* gyroscopes[NO_OF_UNITS];
+  Adafruit_Sensor* magnetometers[NO_OF_UNITS];
+
   SensorData sensorData[NO_OF_UNITS];
 };
 

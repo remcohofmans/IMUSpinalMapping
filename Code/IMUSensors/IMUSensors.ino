@@ -11,6 +11,11 @@
 #include "OutputManager.h"
 #include "WebServer.h"
 
+#include <Adafruit_ICM20948.h>
+#include <Adafruit_Sensor_Calibration.h>
+#include <Adafruit_AHRS.h>
+#include <Wire.h>
+
 // WiFi credentials
 const char* ssid = "telenet-6073619";
 const char* password = "6Gby6hBrenwc";
@@ -25,14 +30,14 @@ OutputManager outputManager;
 WebServer webServer(&sensorManager, &filterManager);
 
 // Timing variables
-unsigned long lastWebUpdateTime = 0;
-const unsigned long WEB_UPDATE_INTERVAL = 1; // 1ms -> 1000Hz update rate
+#define PRINT_EVERY_N_UPDATES 1
+uint32_t timestamp;
+
 
 void setup(void) {
   
   Serial.begin(115200); // Initialize serial communication with a baud rate of 115200 bps
-  while (!Serial)
-    delay(10);
+  while (!Serial) delay(10);
   
   // Initialize I2C communication between ESP32 and sensors
   if (!sensorManager.initialize()) {
@@ -41,12 +46,14 @@ void setup(void) {
       delay(1000);  // Halt for 1000ms
     }
   }
-  
+
   // Initialize all the managers with references to each other
   calibrationManager.initialize(&sensorManager);
   storageManager.initialize(&calibrationManager);
   filterManager.initialize(&sensorManager, &calibrationManager);
   outputManager.initialize(&sensorManager, &calibrationManager, &filterManager);
+
+  timestamp = millis();
 
   // Initialize LittleFS - load the HTML file
   if(!LittleFS.begin(true)) { // If mounting fails, it will automatically format the flash storage and then mount it
@@ -67,7 +74,7 @@ void setup(void) {
   }
   
   // Try to load calibration data from EEPROM
-  if (!storageManager.loadCalibrationFromEEPROM()) {
+  if (!storageManager.loadCalibration()) {
     Serial.println("No valid calibration data found in EEPROM");
   } else {
     Serial.println("Calibration data loaded from EEPROM");
@@ -87,7 +94,7 @@ void setup(void) {
   
   if (response == 'Y' || response == 'y') {
     calibrationManager.performFullCalibration();
-    storageManager.saveCalibrationToEEPROM();
+    storageManager.saveCalibration();
   } else {
     Serial.println("Using existing calibration values");
   }
@@ -108,6 +115,12 @@ void setup(void) {
 }
 
 void loop() {
+
+  if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
+    return;
+  }
+  timestamp = millis();
+
   // Read raw sensor data for all active sensors
   sensorManager.readAllSensors();
   
@@ -117,13 +130,10 @@ void loop() {
   // Print processed data periodically to Serial and WebSocket
   outputManager.printSensorData();
   
-  // Update web clients with orientation data
-  unsigned long currentTime = millis();
-  if (currentTime - lastWebUpdateTime >= WEB_UPDATE_INTERVAL) {
-    webServer.updateOrientationData();
-    lastWebUpdateTime = currentTime;
-  }
-  
-  // Delay to not overwhelm the system
-  delay(10);  
+  // // Update web clients with orientation data
+  // unsigned long currentTime = millis();
+  // if (currentTime - lastWebUpdateTime >= WEB_UPDATE_INTERVAL) {
+  //   webServer.updateOrientationData();
+  //   lastWebUpdateTime = currentTime;
+  // }
 }

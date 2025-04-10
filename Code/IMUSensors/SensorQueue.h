@@ -33,7 +33,7 @@ public:
 
 private:
   cppQueue queue;
-  static const int QUEUE_SIZE = 10;
+  static const int QUEUE_SIZE = 1;
 };
 
 #endif // SENSOR_QUEUE_H
