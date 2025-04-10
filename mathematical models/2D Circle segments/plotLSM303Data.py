@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load CSV file
-CSV_FILE = "magnetometer_data.csv"
+CSV_FILE = "LSM303_Mag.csv"
 df = pd.read_csv(CSV_FILE)
 
 # Extract columns (Make sure CSV has X, Y, Z)
@@ -12,9 +12,9 @@ raw_y = df["Y"]
 raw_z = df["Z"]
 
 # Calculate mean values as offsets
-offset_x = np.mean(raw_x)
-offset_y = np.mean(raw_y)
-offset_z = np.mean(raw_z)
+offset_x = (max(raw_x) + min(raw_x))/2
+offset_y = (max(raw_y) + min(raw_y))/2    
+offset_z = (max(raw_z) + min(raw_z))/2
 print(f"Offset X: {offset_x}, Offset Y: {offset_y}, Offset Z: {offset_z}")
 
 # Apply offset to raw data
@@ -27,10 +27,9 @@ fig, ax = plt.subplots(1, 1)
 ax.set_aspect(1)  # Keep aspect ratio 1:1
 
 # Scatter plots for each axis combination
-
+sc1 = ax.scatter(raw_x, raw_y, color="r", label="X vs Y")
 sc2 = ax.scatter(raw_y, raw_z, color="g", label="Y vs Z")
 sc3 = ax.scatter(raw_z, raw_x, color="b", label="Z vs X")
-sc1 = ax.scatter(raw_x, raw_y, color="r", label="X vs Y")
 
 # Labels and legend
 ax.set_xlabel("Magnetometer Values")
@@ -42,17 +41,16 @@ plt.title("2D Scatter Plots of biased Magnetometer Data")
 fig, ax = plt.subplots(1, 1)
 ax.set_aspect(1)  # Keep aspect ratio 1:1
 
+# Scatter plots for each axis combination
+sc1 = ax.scatter(centered_x, centered_y, color="r", label="X vs Y")
+sc2 = ax.scatter(centered_y, centered_z, color="g", label="Y vs Z")
+sc3 = ax.scatter(centered_z, centered_x, color="b", label="Z vs X")
+
 # Labels and legend
 ax.set_xlabel("Magnetometer Values")
 ax.set_ylabel("Magnetometer Values")
 ax.legend()
 plt.title("2D Scatter Plots of biased Magnetometer Data")
-
-# Scatter plots for each axis combination
-
-sc2 = ax.scatter(centered_y, centered_z, color="g", label="Y vs Z")
-sc3 = ax.scatter(centered_z, centered_x, color="b", label="Z vs X")
-sc1 = ax.scatter(centered_x, centered_y, color="r", label="X vs Y")
 
 # Calculate covariance matrix
 cov = np.zeros((3, 3))
@@ -98,10 +96,9 @@ fig, ax = plt.subplots(1, 1)
 ax.set_aspect(1)  # Keep aspect ratio 1:1
 
 # Scatter plots for each axis combination
-
+sc1 = ax.scatter(calibrated_x, calibrated_y, color="r", label="X vs Y")
 sc2 = ax.scatter(calibrated_y, calibrated_z, color="g", label="Y vs Z")
 sc3 = ax.scatter(calibrated_z, calibrated_x, color="b", label="Z vs X")
-sc1 = ax.scatter(calibrated_x, calibrated_y, color="r", label="X vs Y")
 
 
 # Labels and legend
