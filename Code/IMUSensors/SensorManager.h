@@ -12,9 +12,13 @@
 #include <Adafruit_AHRS.h>  // Add this include
 #include <Wire.h>
 
-#define NO_OF_UNITS 1
+#define NO_OF_UNITS 4
 #define TCAADDR 0x70
 
+struct SensorConfig {
+  uint8_t channel;
+  uint8_t address;
+};
 
 class SensorManager {
 public:
@@ -46,6 +50,8 @@ public:
 private:
   bool sensorActive[NO_OF_UNITS];
   int activeCount;
+
+  static const SensorConfig sensorConfigs[NO_OF_UNITS];
   
   // Current sensor readings
   struct SensorData {
@@ -54,11 +60,6 @@ private:
     float mag[3];   // X, Y, Z
     float temp;     // Temperature
     unsigned long timestamp; 
-  };
-
-  struct SensorConfig {
-    uint8_t channel;
-    uint8_t address;
   };
   
   // Initialize ICM20948 IMU sensors

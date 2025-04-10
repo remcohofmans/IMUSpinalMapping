@@ -11,6 +11,14 @@
   Adafruit_Sensor_Calibration_SDFat* calibrations[NO_OF_UNITS];
 #endif
 
+const SensorConfig SensorManager::sensorConfigs[NO_OF_UNITS] = {
+  {0, 0x68},
+  {0, 0x69},
+  {1, 0x68},
+  {1, 0x69}
+  // {3, 0x69}
+};
+
 SensorManager::SensorManager() : activeCount(0) {
   // Initialize sensorActive array
   for (int i = 0; i < NO_OF_UNITS; i++) {
@@ -20,8 +28,8 @@ SensorManager::SensorManager() : activeCount(0) {
 
 void SensorManager::tcaSelect(uint8_t i) {
   if (i > 7) return;  // TCA9548A has 8 channels (0-7)
-  Serial.print("tca selected port: ");
-  Serial.println(i);
+  //Serial.print("tca selected port: ");
+  //Serial.println(i);
   Wire.beginTransmission(TCAADDR);  
   delay(10);
   Wire.write(1 << i);  // Select the desired channel by sending a byte with the bit corresponding to that channel set to 1
@@ -29,14 +37,6 @@ void SensorManager::tcaSelect(uint8_t i) {
 }
 
 bool SensorManager::initialize() {
-
-  const SensorConfig sensorConfigs[] = {
-    {1, 0x68},
-    {1, 0x69},
-    {2, 0x68},
-    {2, 0x69},
-    {3, 0x69},
-  };
 
   for (int i = 0; i < NO_OF_UNITS && i < (sizeof(sensorConfigs) / sizeof(sensorConfigs[0])); i++) {
     Serial.print("Trying sensor ");
@@ -73,6 +73,7 @@ bool SensorManager::initialize() {
 
 void SensorManager::readAllSensors() {
   for (int i = 0; i < NO_OF_UNITS; i++) {
+    tcaSelect(sensorConfigs[i].channel);
     if (!sensorActive[i]) continue;
 
     sensors_event_t accel, gyro, mag, temp;

@@ -54,7 +54,7 @@ void OutputManager::printSensorDataForUnit(int sensorId) {
   
   // Get orientation
   float roll, pitch, yaw;
-  if(sensorId==0) filterManager->getOrientation(sensorId, roll, pitch, yaw);
+  filterManager->getOrientation(sensorId, roll, pitch, yaw);
   
   // Print data
   Serial.println("\n===========================");
