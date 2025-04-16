@@ -33,21 +33,24 @@ WebServer webServer(&sensorManager, &filterManager);
 #define PRINT_EVERY_N_UPDATES 1
 uint32_t timestamp;
 
+// flag to toggle on/off calibration
+bool calibrateSensors = false;
 
 void setup(void) {
-  
-  Serial.begin(115200); // Initialize serial communication with a baud rate of 115200 bps
+  Serial.begin(115200);
   while (!Serial) delay(10);
-  
-  // Initialize I2C communication between ESP32 and sensors
+
+  // Initialize sensors
   if (!sensorManager.initialize()) {
     Serial.println("CRITICAL ERROR: No sensors found!");
+    Serial.print("Try to restart or check the connections to the multiplexer");
     while (1) {
-      delay(1000);  // Halt for 1000ms
+      delay(1000);
+      Serial.print(".");
     }
   }
 
-  // Initialize all the managers with references to each other
+  // Initialize system managers
   calibrationManager.initialize(&sensorManager);
   storageManager.initialize(&calibrationManager);
   filterManager.initialize(&sensorManager, &calibrationManager);
@@ -55,12 +58,13 @@ void setup(void) {
 
   timestamp = millis();
 
-  // Initialize LittleFS - load the HTML file
-  if(!LittleFS.begin(true)) { // If mounting fails, it will automatically format the flash storage and then mount it
+  // Mount filesystem
+  if(!LittleFS.begin(true)) {
     Serial.println("LittleFS Mount Failed");
     return;
   }
 
+  // List files
   Serial.println("LittleFS File List:");
   File root = LittleFS.open("/");
   File file = root.openNextFile();
@@ -72,33 +76,44 @@ void setup(void) {
     Serial.println(" bytes)");
     file = root.openNextFile();
   }
-  
-  // Try to load calibration data from EEPROM
+
+  // Always attempt to load calibration from EEPROM
   if (!storageManager.loadCalibration()) {
+    // If loading fails, force full calibration regardless of calibrateSensors flag
+    calibrationManager.performFullCalibration(true);
     Serial.println("No valid calibration data found in EEPROM");
-  } else {
-    Serial.println("Calibration data loaded from EEPROM");
-    calibrationManager.printCalibrationData();
-  }
-  
-  // Ask user if they want to perform calibration
-  Serial.println("\nDo you want to perform sensor calibration?");
-  Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
-  
-  while (!Serial.available()) { // Check if data is available in the serial buffer
-    // Wait for user input
-  }
-  
-  char response = Serial.read();  // Read the user input (FIFO, 1 byte)
-  while (Serial.available()) Serial.read();  // Clear input buffer
-  
-  if (response == 'Y' || response == 'y') {
-    calibrationManager.performFullCalibration();
     storageManager.saveCalibration();
   } else {
-    Serial.println("Using existing calibration values");
+    // Calibration data exists in EEPROM
+    Serial.println("Calibration data loaded from EEPROM");
+    calibrationManager.printCalibrationData();
+
+    if (calibrateSensors) {
+      // Prompt user for manual calibration
+      Serial.println("\nDo you want to perform sensor calibration?");
+      Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+
+      while(true){
+        while (!Serial.available()) {}
+        char response = Serial.read();
+        while (Serial.available()) Serial.read(); // clear buffer
+
+        if (response == 'Y' || response == 'y') {
+          calibrationManager.performFullCalibration(false);
+          storageManager.saveCalibration();
+          break;
+        } else if (response == 'N' || response == 'n') {
+          Serial.println("Using existing calibration values");
+          break;
+        } else {
+          Serial.print("Not a valid input, ");
+          Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+        }
+      }
+    } else {
+      Serial.println("Using EEPROM calibration without re-calibration (calibrateSensors = false)");
+    }
   }
-  
   // For vertical orientation with X pointing down:
   // filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
     
@@ -120,15 +135,28 @@ void loop() {
     return;
   }
   timestamp = millis();
+  Serial.println(timestamp);
 
   // Read raw sensor data for all active sensors
   sensorManager.readAllSensors();
+
+  int timepassed = millis() - timestamp;
+  Serial.print("Time ellapsed after reading all sensors: ");
+  Serial.println(timepassed);
   
   // Process sensor data through filters
   filterManager.processAllSensors();
+
+  timepassed = millis() - timestamp;
+  Serial.print("Time ellapsed after processing sensors: ");
+  Serial.println(timepassed);
   
   // Print processed data periodically to Serial and WebSocket
   outputManager.printSensorData();
+
+  timepassed = millis() - timestamp;
+  Serial.print("Time ellapsed after print sensors data: ");
+  Serial.println(timepassed);
   
   // // Update web clients with orientation data
   // unsigned long currentTime = millis();

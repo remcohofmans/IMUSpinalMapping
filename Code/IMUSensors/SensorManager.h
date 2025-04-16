@@ -12,7 +12,7 @@
 #include <Adafruit_AHRS.h>  // Add this include
 #include <Wire.h>
 
-#define NO_OF_UNITS 4
+#define NO_OF_UNITS 2
 #define TCAADDR 0x70
 
 struct SensorConfig {

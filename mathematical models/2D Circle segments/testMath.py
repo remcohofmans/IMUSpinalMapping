@@ -32,7 +32,7 @@ def calculate_offset(previousX, previousY, sensorA, sensorB, arc_length):
     y_p = y_s - radius * math.sin(sensorB)
     
     x_point = x_p + previousX
-    y_point = previousY - abs(y_p)
+    y_point = previousY + abs(y_p)
    
     print(f"radius: {radius:.3f}")
     print(f"Coordinates middle point of circle: ({x_s:.3f}, {y_s:.3f})") 
@@ -61,7 +61,7 @@ plt.scatter(x2, y2, color='orange', label='Point 3')
 plt.scatter(x3, y3, color='green', label='Point 4')
 plt.scatter(x4, y4, color='black', label='Point 5')
 plt.xlim(-25, 25)
-plt.ylim(-40, 10)
+plt.ylim(-10, 40)
 
 # Add labels and title
 plt.xlabel('X-axis')

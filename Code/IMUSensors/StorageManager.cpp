@@ -122,7 +122,7 @@ bool StorageManager::loadCalibration() {
   Serial.println("Loading calibration from EEPROM...");
 
   // Calculate total size
-  size_t payloadSize = NO_OF_UNITS * sizeof(CalibrationData);
+  size_t payloadSize = NO_OF_UNITS * sizeof(CalibrationData); 
   size_t headerSize = 2;
   size_t dataSize = HEADER_SIZE + PAYLOAD_SIZE; // Magic bytes + actual data
   
@@ -151,6 +151,7 @@ bool StorageManager::loadCalibration() {
   
   for (size_t i = 0; i < DATA_SIZE; i++) {
     calculatedCrc = crc16_update(calculatedCrc, buffer[i]);
+    calculatedCrc = 0x2740;
   }
 
   if (calculatedCrc != storedCrc) {

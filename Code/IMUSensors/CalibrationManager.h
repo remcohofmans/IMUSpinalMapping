@@ -42,7 +42,7 @@ public:
   void initialize(SensorManager* sensorMgr);
   
   // Calibration procedures
-  void performFullCalibration();
+  void performFullCalibration(bool calibrateAll);
   void calibrateGyros();
   void calibrateAccelerometers();
   void calibrateMagnetometers();

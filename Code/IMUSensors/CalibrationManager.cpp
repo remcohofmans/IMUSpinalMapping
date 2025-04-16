@@ -13,7 +13,7 @@ void CalibrationManager::initialize(SensorManager *sensorMgr) {
   sensorManager = sensorMgr;
 }
 
-void CalibrationManager::performFullCalibration() {
+void CalibrationManager::performFullCalibration(bool calibrateAll) {
 
   // Configure sensors for calibration
   sensorManager->configureForCalibration();
@@ -29,6 +29,46 @@ void CalibrationManager::performFullCalibration() {
 }
 
 void CalibrationManager::calibrateGyros() {
+
+  // Ask user if they want to perform calibration
+  Serial.println("\nDo you want to perform a gyro calibration of all sensors?");
+  Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+
+  while(true){
+    while (!Serial.available()) {} // Check if data is available in the serial buffer
+    // Wait for user input
+  
+    char response = Serial.read();  // Read the user input (FIFO, 1 byte)
+    while (Serial.available()) Serial.read();  // Clear input buffer
+    
+    if (response == 'Y' || response == 'y') {
+      break;
+    } else if(response == 'N' || response == 'n') {
+      for(int unit = 0; unit < NO_OF_UNITS; unit++){
+        Serial.println("Gyroscope offsets (rad/s):");
+        Serial.print("X: ");
+        Serial.print(calibrationData[unit].gyro_offset[0], 6);
+        Serial.print(" Y: ");
+        Serial.print(calibrationData[unit].gyro_offset[1], 6);
+        Serial.print(" Z: ");
+        Serial.print(calibrationData[unit].gyro_offset[2], 6);
+        Serial.println();
+
+        Serial.println("Gyroscope scale factors:");
+        Serial.print("X: ");
+        Serial.print(calibrationData[unit].gyro_scale[0], 6);
+        Serial.print(" Y: ");
+        Serial.print(calibrationData[unit].gyro_scale[1], 6);
+        Serial.print(" Z: ");
+        Serial.print(calibrationData[unit].gyro_scale[2], 6);
+        Serial.println();
+      }
+      return;
+    } else {
+      Serial.print("not a valid input, ");
+      Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+    }
+  } 
 
   Serial.println("\n=== Gyroscope Calibration ===");
   Serial.println("Keep the sensor units completely STILL.");
@@ -100,6 +140,46 @@ void CalibrationManager::calibrateGyros() {
 }
 
 void CalibrationManager::calibrateAccelerometers() {
+
+  // Ask user if they want to perform calibration
+  Serial.println("\nDo you want to perform an accelerometer calibration of all sensors?");
+  Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+
+  while(true){
+    while (!Serial.available()) {} // Check if data is available in the serial buffer
+    // Wait for user input
+  
+    char response = Serial.read();  // Read the user input (FIFO, 1 byte)
+    while (Serial.available()) Serial.read();  // Clear input buffer
+    
+    if (response == 'Y' || response == 'y') {
+      break;
+    } else if(response == 'N' || response == 'n') {
+      for(int unit = 0; unit < NO_OF_UNITS; unit++){
+        Serial.println("Accelerometer offsets (m/s²):");
+        Serial.print("X: ");
+        Serial.print(calibrationData[unit].accel_offset[0], 4);
+        Serial.print(" Y: ");
+        Serial.print(calibrationData[unit].accel_offset[1], 4);
+        Serial.print(" Z: ");
+        Serial.print(calibrationData[unit].accel_offset[2], 4);
+        Serial.println();
+
+        Serial.println("Accelerometer scale factors:");
+        Serial.print("X: ");
+        Serial.print(calibrationData[unit].accel_scale[0], 4);
+        Serial.print(" Y: ");
+        Serial.print(calibrationData[unit].accel_scale[1], 4);
+        Serial.print(" Z: ");
+        Serial.print(calibrationData[unit].accel_scale[2], 4);
+        Serial.println();
+      }
+      return;
+    } else {
+      Serial.print("not a valid input, ");
+      Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+    }
+  } 
 
   Serial.println("\n=== Accelerometer Calibration ===");
   Serial.println("This requires positioning all sensor units in 6 different orientations.");
@@ -229,7 +309,62 @@ void CalibrationManager::calibrateMagnetometers() {
   Serial.println("Try to cover all possible orientations in a figure-8 pattern.");
 
   for (int unit = 0; unit < NO_OF_UNITS; unit++) {
-    if (!sensorManager->isSensorActive(unit)) continue;
+    bool calibrate; 
+
+    Serial.println("Magnetometer data for unit: " + String(unit + 1));
+    Serial.println("Magnetometer hard iron offsets (uT):");
+    Serial.print("X: ");
+    Serial.print(calibrationData[unit].mag_offset[0], 4);
+    Serial.print(" Y: ");
+    Serial.print(calibrationData[unit].mag_offset[1], 4);
+    Serial.print(" Z: ");
+    Serial.print(calibrationData[unit].mag_offset[2], 4);
+    Serial.println();
+
+    Serial.println("Magnetometer soft iron scale factors:");
+    Serial.print("X: ");
+    Serial.print(calibrationData[unit].mag_scale[0], 4);
+    Serial.print(" Y: ");
+    Serial.print(calibrationData[unit].mag_scale[1], 4);
+    Serial.print(" Z: ");
+    Serial.print(calibrationData[unit].mag_scale[2], 4);
+    Serial.println();
+
+    Serial.println("Magnetometer soft iron correction matrix:");
+    for (int i = 0; i < 3; i++) {
+      Serial.print("[ ");
+      for (int j = 0; j < 3; j++) {
+        Serial.print(calibrationData[unit].soft_iron_matrix[i][j], 2);
+        Serial.print(" ");
+      }
+      Serial.println("]");
+    }
+
+    // Ask user if they want to perform calibration
+    Serial.println("\nDo you want to perform a magnetometer calibration of sensor unit: " + String(unit + 1) + " ?");
+    Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+
+    while(true){
+      while (!Serial.available()) {} // Check if data is available in the serial buffer
+      // Wait for user input
+    
+      char response = Serial.read();  // Read the user input (FIFO, 1 byte)
+      while (Serial.available()) Serial.read();  // Clear input buffer
+      
+      if (response == 'Y' || response == 'y') {
+        calibrate = true;
+        break;
+      } else if(response == 'N' || response == 'n') {
+        calibrate = false;
+        break;
+      } else {
+        Serial.print("not a valid input, ");
+        Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
+      }
+    } 
+
+    // if the sensor is inactive or we don't want to calibrate it skip the calibration
+    if (!sensorManager->isSensorActive(unit) || !calibrate) continue;
 
     Serial.println("\n=== Calibrating Unit " + String(unit + 1) + " Magnetometer ===");
     Serial.println("Hold Unit " + String(unit + 1) + " in your hand.");
@@ -871,4 +1006,4 @@ CalibrationData *CalibrationManager::getAllCalibrationData() {
   return calibrationData;
 }
 
-#endif  // CALIBRATION_MANAGER_CPP
+#endif  // CALIBRATION_MANAGER_C

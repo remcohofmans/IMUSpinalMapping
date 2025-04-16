@@ -13,9 +13,9 @@
 
 const SensorConfig SensorManager::sensorConfigs[NO_OF_UNITS] = {
   {0, 0x68},
-  {0, 0x69},
-  {1, 0x68},
-  {1, 0x69}
+  {0, 0x69}
+  //{1, 0x68},
+  //{1, 0x69}
   // {3, 0x69}
 };
 
@@ -31,14 +31,14 @@ void SensorManager::tcaSelect(uint8_t i) {
   //Serial.print("tca selected port: ");
   //Serial.println(i);
   Wire.beginTransmission(TCAADDR);  
-  delay(10);
+  //Wire.setClock(400000); //saves ... time 
   Wire.write(1 << i);  // Select the desired channel by sending a byte with the bit corresponding to that channel set to 1
   Wire.endTransmission();
 }
 
 bool SensorManager::initialize() {
 
-  for (int i = 0; i < NO_OF_UNITS && i < (sizeof(sensorConfigs) / sizeof(sensorConfigs[0])); i++) {
+  for (int i = 0; i < NO_OF_UNITS; i++) {
     Serial.print("Trying sensor ");
     Serial.print(i + 1); 
     Serial.print(" at channel ");
@@ -53,14 +53,17 @@ bool SensorManager::initialize() {
       sensorActive[i] = true;
       activeCount++;
       Serial.println(" -> SUCCESS");
+
+      accelerometers[i] = icm[i].getAccelerometerSensor();
+      gyroscopes[i] = icm[i].getGyroSensor();
+      magnetometers[i] = icm[i].getMagnetometerSensor();
+
     } else {
       sensorActive[i] = false;  // Re-assure sensor is deemed inactive
       Serial.println(" -> FAILED");
     }
 
-    accelerometers[i] = icm[i].getAccelerometerSensor();
-    gyroscopes[i] = icm[i].getGyroSensor();
-    magnetometers[i] = icm[i].getMagnetometerSensor();
+    
   }
 
   if (activeCount == 0) {
