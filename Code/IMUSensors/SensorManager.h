@@ -9,10 +9,10 @@
 #include "Adafruit_ICM20948.h"
 #include <Adafruit_Sensor_Calibration.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_AHRS.h>  // Add this include
+#include "AHRS_mahony_filter.h"
 #include <Wire.h>
 
-#define NO_OF_UNITS 2
+#define NO_OF_UNITS 1
 #define TCAADDR 0x70
 
 struct SensorConfig {

@@ -13,7 +13,7 @@
 
 #include <Adafruit_ICM20948.h>
 #include <Adafruit_Sensor_Calibration.h>
-#include <Adafruit_AHRS.h>
+#include "AHRS_mahony_filter.h"
 #include <Wire.h>
 
 // WiFi credentials
@@ -34,7 +34,7 @@ WebServer webServer(&sensorManager, &filterManager);
 uint32_t timestamp;
 
 // flag to toggle on/off calibration
-bool calibrateSensors = false;
+bool calibrateSensors = true;
 
 void setup(void) {
   Serial.begin(115200);
@@ -135,28 +135,28 @@ void loop() {
     return;
   }
   timestamp = millis();
-  Serial.println(timestamp);
+  // Serial.println(timestamp);
 
   // Read raw sensor data for all active sensors
   sensorManager.readAllSensors();
 
-  int timepassed = millis() - timestamp;
-  Serial.print("Time ellapsed after reading all sensors: ");
-  Serial.println(timepassed);
+  // int timepassed = millis() - timestamp;
+  // Serial.print("Time ellapsed after reading all sensors: ");
+  // Serial.println(timepassed);
   
   // Process sensor data through filters
   filterManager.processAllSensors();
 
-  timepassed = millis() - timestamp;
-  Serial.print("Time ellapsed after processing sensors: ");
-  Serial.println(timepassed);
+  // timepassed = millis() - timestamp;
+  // Serial.print("Time ellapsed after processing sensors: ");
+  // Serial.println(timepassed);
   
   // Print processed data periodically to Serial and WebSocket
   outputManager.printSensorData();
 
-  timepassed = millis() - timestamp;
-  Serial.print("Time ellapsed after print sensors data: ");
-  Serial.println(timepassed);
+  // timepassed = millis() - timestamp;
+  // Serial.print("Time ellapsed after print sensors data: ");
+  // Serial.println(timepassed);
   
   // // Update web clients with orientation data
   // unsigned long currentTime = millis();

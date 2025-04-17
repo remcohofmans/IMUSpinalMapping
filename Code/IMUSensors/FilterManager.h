@@ -8,7 +8,7 @@
 
 #include "SensorManager.h"
 #include "SensorQueue.h"
-#include <Adafruit_AHRS.h>
+#include "AHRS_mahony_filter.h"
 
 #define FILTER_UPDATE_RATE_HZ 100
 
@@ -94,7 +94,7 @@ private:
   bool useQuaternions;
 
   // Mahony filter instances for the sensor fusion process
-  Adafruit_Mahony* mahonyFilters[NO_OF_UNITS];
+  AHRS_mahony_filter* mahonyFilters[NO_OF_UNITS];
 
   // Magnetic declination adjustment (in degrees)
   static constexpr float MAGNETIC_DECLINATION = 1.5f;  // Constant for Belgium

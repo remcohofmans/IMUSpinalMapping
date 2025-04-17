@@ -29,7 +29,7 @@ FilterManager::FilterManager() :
     // quaternions[i].z = 0.0f;
 
     // Create a Mahony filter for each sensor
-    mahonyFilters[i] = new Adafruit_Mahony();
+    mahonyFilters[i] = new AHRS_mahony_filter();
     
     // Initialize magnetic disturbance detection flags to false
     magDisturbance[i] = false;

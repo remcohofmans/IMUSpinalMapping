@@ -93,10 +93,16 @@ bool StorageManager::saveCalibration() {
   buffer[DATA_SIZE] = crc & 0xFF;  // Masks everything except the lowest 8 bits of crc
   buffer[DATA_SIZE + 1] = crc >> 8;  // Shifts the bits 8 positions to the right, leaving the highest 8 bits
 
+
+  
+
   // Write to EEPROM
   for (size_t i = 0; i < TOTAL_SIZE; ++i) {
     EEPROM.write(EEPROM_ADDR_CALIBRATION + i, buffer[i]);
+    Serial.print(buffer[i]);
+    Serial.print(",");
   }
+  Serial.println("");
 
   // Commit changes (required for ESP32/ESP8266)
   bool success = EEPROM.commit();
@@ -124,7 +130,7 @@ bool StorageManager::loadCalibration() {
   // Calculate total size
   size_t payloadSize = NO_OF_UNITS * sizeof(CalibrationData); 
   size_t headerSize = 2;
-  size_t dataSize = HEADER_SIZE + PAYLOAD_SIZE; // Magic bytes + actual data
+  size_t dataSize = HEADER_SIZE + PAYLOAD_SIZE + CRC_SIZE; // Magic bytes + actual data
   
   // Create buffer for EEPROM data
   uint8_t* buffer = new uint8_t[TOTAL_SIZE];
@@ -136,7 +142,10 @@ bool StorageManager::loadCalibration() {
   // Read from EEPROM
   for (size_t i = 0; i < TOTAL_SIZE; i++) {
     buffer[i] = EEPROM.read(EEPROM_ADDR_CALIBRATION + i);
+    Serial.print(buffer[i]);
+    Serial.print(",");
   }
+  Serial.println("");
 
   // Check magic header
   if (buffer[0] != 0x75 || buffer[1] != 0x54) {
@@ -151,7 +160,6 @@ bool StorageManager::loadCalibration() {
   
   for (size_t i = 0; i < DATA_SIZE; i++) {
     calculatedCrc = crc16_update(calculatedCrc, buffer[i]);
-    calculatedCrc = 0x2740;
   }
 
   if (calculatedCrc != storedCrc) {

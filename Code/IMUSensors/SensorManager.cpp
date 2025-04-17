@@ -12,8 +12,8 @@
 #endif
 
 const SensorConfig SensorManager::sensorConfigs[NO_OF_UNITS] = {
-  {0, 0x68},
-  {0, 0x69}
+  {0, 0x68}
+  //{0, 0x69}
   //{1, 0x68},
   //{1, 0x69}
   // {3, 0x69}
