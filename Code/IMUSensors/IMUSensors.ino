@@ -17,8 +17,8 @@
 #include <Wire.h>
 
 // WiFi credentials
-const char* ssid = "telenet-6073619";
-const char* password = "6Gby6hBrenwc";
+const char* ssid = "telenet-27CE5";
+const char* password = "jEy6kRyfzBnY";
 const char* username = nullptr;
 
 // Create global manager instances
@@ -77,6 +77,14 @@ void setup(void) {
     file = root.openNextFile();
   }
 
+  // Initialize and start web server to serve data over HTTP and WebSockets to the browser client
+  if (webServer.initialize(ssid, password, "esp32-imu")) {
+    webServer.start();
+  } else {
+    Serial.println("WARNING: Web server initialization failed.");
+    Serial.println("Continuing with Serial output only");
+  }
+
   // Always attempt to load calibration from EEPROM
   if (!storageManager.loadCalibration()) {
     // If loading fails, force full calibration regardless of calibrateSensors flag
@@ -117,16 +125,7 @@ void setup(void) {
   // For vertical orientation with X pointing down:
   // filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
     
-  // Initialize and start web server to serve data over HTTP and WebSockets to the browser client
-  // if (webServer.initialize(ssid, password, "esp32-imu")) {
-  //   webServer.start();
-  // } else {
-  //   Serial.println("WARNING: Web server initialization failed.");
-  //   Serial.println("Continuing with Serial output only");
-  // }
   
-  // Server has been set up, regularly update the orientation data
-  // lastWebUpdateTime = millis();
 }
 
 void loop() {
@@ -158,10 +157,8 @@ void loop() {
   // Serial.print("Time ellapsed after print sensors data: ");
   // Serial.println(timepassed);
   
-  // // Update web clients with orientation data
-  // unsigned long currentTime = millis();
-  // if (currentTime - lastWebUpdateTime >= WEB_UPDATE_INTERVAL) {
-  //   webServer.updateOrientationData();
-  //   lastWebUpdateTime = currentTime;
-  // }
+  // Update web clients with orientation data
+  unsigned long currentTime = millis();
+  webServer.updateOrientationData();
+  
 }

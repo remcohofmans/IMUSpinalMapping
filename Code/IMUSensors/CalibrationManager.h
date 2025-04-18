@@ -47,6 +47,9 @@ public:
   void calibrateAccelerometers();
   void calibrateMagnetometers();
   void calibrateTemperatures();
+
+  //transforming axis to back measurement
+  void transformSensorAxes(float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]);
   
   // Apply calibration to sensor readings
   void calibrateAccelData(int sensorId, float raw_x, float raw_y, float raw_z,

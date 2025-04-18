@@ -129,8 +129,8 @@ private:
   bool mag_buffer_initialized[NO_OF_UNITS];
 
   // Axis remapping configuration
-  int axisMapping[3] = { 0, 1, 2 };  // Default mapping: X->X, Y->Y, Z->Z
-  int axisSigns[3] = { 1, 1, 1 };    // Default signs: all positive
+  int axisMapping[3] = { 2, 1, 0 };  // Default mapping: X->Z, Y->Y, Z->X
+  int axisSigns[3] = { 1, 1, -1 };    // Default signs: all positive
 
   // For backward compatibility (original implementation)
   float comp_angle_x[NO_OF_UNITS];  // Roll

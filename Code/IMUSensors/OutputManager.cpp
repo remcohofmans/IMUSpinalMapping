@@ -66,14 +66,15 @@ void OutputManager::printSensorDataForUnit(int sensorId) {
   Serial.print(", ");
   Serial.println(roll);
 
-  // float qw, qx, qy, qz;
-  // filter.getQuaternion(&qw, &qx, &qy, &qz);
-  // Serial.print("Quaternion: ");
-  // Serial.print(qw, 3);
-  // Serial.print(", ");
-  // Serial.print(qx, 3);
-  // Serial.print(", ");
-  // Serial.print(qy, 3);
-  // Serial.print(", ");
-  // Serial.println(qz, 3);
+
+  float qw, qx, qy, qz;
+  filterManager->getQuaternion(sensorId, qw, qx, qy, qz);
+  Serial.print("Quaternion: ");
+  Serial.print(qw, 3);
+  Serial.print(", ");
+  Serial.print(qx, 3);
+  Serial.print(", ");
+  Serial.print(qy, 3);
+  Serial.print(", ");
+  Serial.println(qz, 3);
 }

@@ -249,9 +249,9 @@ void FilterManager::processAllSensors() {
     sensorManager->getRawMag(sensorId, mx, my, mz);
 
     // Apply axis transformation
-    // calibrationManager->transformSensorAxes(ax, ay, az, axisMapping, axisSigns);
-    // calibrationManager->transformSensorAxes(gx, gy, gz, axisMapping, axisSigns);
-    // calibrationManager->transformSensorAxes(mx, my, mz, axisMapping, axisSigns);
+    calibrationManager->transformSensorAxes(ax, ay, az, axisMapping, axisSigns);
+    calibrationManager->transformSensorAxes(gx, gy, gz, axisMapping, axisSigns);
+    calibrationManager->transformSensorAxes(mx, my, mz, axisMapping, axisSigns);
 
     // Calibration
     float cal_ax, cal_ay, cal_az, cal_gx, cal_gy, cal_gz, cal_mx, cal_my, cal_mz;
@@ -294,6 +294,22 @@ void FilterManager::processAllSensors() {
       applySpinalConstraints(sensorId);
     }
   }
+}
+
+void CalibrationManager::transformSensorAxes(float &x, float &y, float &z, int axisMapping[3], int axisSigns[3]) {
+
+  // Store original values
+  float original[3] = { x, y, z };
+
+  // Remap axes according to mapping and signs
+  x = original[axisMapping[0]] * axisSigns[0];
+  y = original[axisMapping[1]] * axisSigns[1];
+  z = original[axisMapping[2]] * axisSigns[2];
+
+  // Serial.print("Output values axes: x="); Serial.print(x, 6);
+  // Serial.print(", y="); Serial.print(y, 6);
+  // Serial.print(", z="); Serial.println(z, 6);
+  // Serial.println("=====================================");
 }
 
 void FilterManager::detectMagneticDisturbance(int sensorId, float mag_x, float mag_y, float mag_z) {
@@ -509,5 +525,13 @@ void FilterManager::getOrientation(int sensorId, float &roll, float &pitch, floa
   roll = mahonyFilters[sensorId]->getRoll();
   pitch = mahonyFilters[sensorId]->getPitch();
   yaw = mahonyFilters[sensorId]->getYaw();
+}
+
+void FilterManager::getQuaternion(int sensorId, float &w, float &x, float &y, float &z) {
+  if (sensorId < 0 || sensorId >= NO_OF_UNITS || !sensorManager->isSensorActive(sensorId)) {
+    w = x = y = z = 0;
+    return;
+  }
+  mahonyFilters[sensorId]->getQuaternion(&w, &x, &y, &z);
 }
 

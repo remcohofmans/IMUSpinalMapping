@@ -275,16 +275,21 @@ float AHRS_mahony_filter::invSqrt(float x) {
 //-------------------------------------------------------------------------------------------
 
 void AHRS_mahony_filter::computeAngles() {
-  roll = atan2f(q0 * q1 + q2 * q3, 0.5f - q1 * q1 - q2 * q2);
-  //
-  pitch = atan2f(-2.0f * (q1 * q3 - q0 * q2), q0*q0 - q1*q1 - q2*q2 + q3*q3);
-  yaw = atan2f(q1 * q2 + q0 * q3, 0.5f - q2 * q2 - q3 * q3);
-  grav[0] = 2.0f * (q1 * q3 - q0 * q2);
-  grav[1] = 2.0f * (q0 * q1 + q2 * q3);
-  grav[2] = 2.0f * (q1 * q0 - 0.5f + q3 * q3);
+  // Roll from sin component (X-axis tilt)
+  float sin_roll = 2.0f * (q0 * q1 + q2 * q3);
+  if (fabsf(sin_roll) >= 1.0f)
+    roll = copysignf(M_PI / 2.0f, sin_roll);  // Clamp to ±90°
+  else
+    roll = asinf(sin_roll);
+
+  // Pitch from atan2 — handle full rotation range
+  pitch = atan2f(2.0f * (q0 * q2 - q1 * q3), 1.0f - 2.0f * (q2 * q2 + q1 * q1));
+
+  // Yaw (unchanged, standard heading)
+  yaw = atan2f(
+    2.0f * (q0 * q3 + q1 * q2),
+    1.0f - 2.0f * (q2 * q2 + q3 * q3)
+  );
+
   anglesComputed = 1;
 }
-
-//============================================================================================
-// END OF CODE
-//============================================================================================
