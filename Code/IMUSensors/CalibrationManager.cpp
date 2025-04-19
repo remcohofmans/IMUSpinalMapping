@@ -31,7 +31,7 @@ void CalibrationManager::performFullCalibration(bool calibrateAll) {
 void CalibrationManager::calibrateGyros() {
 
   // Ask user if they want to perform calibration
-  Serial.println("\nDo you want to perform a gyro calibration of all sensors?");
+  Serial.println("\nDo you want to perform a gyro calibration on all sensors?");
   Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
 
   while(true){
@@ -142,7 +142,7 @@ void CalibrationManager::calibrateGyros() {
 void CalibrationManager::calibrateAccelerometers() {
 
   // Ask user if they want to perform calibration
-  Serial.println("\nDo you want to perform an accelerometer calibration of all sensors?");
+  Serial.println("\nDo you want to perform an accelerometer calibration on all sensors?");
   Serial.println("Type 'Y' for Yes or 'N' for No and press Enter");
 
   while(true){

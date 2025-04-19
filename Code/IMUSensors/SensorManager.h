@@ -12,7 +12,7 @@
 #include "AHRS_mahony_filter.h"
 #include <Wire.h>
 
-#define NO_OF_UNITS 1
+#define NO_OF_UNITS 2
 #define TCAADDR 0x70
 
 struct SensorConfig {

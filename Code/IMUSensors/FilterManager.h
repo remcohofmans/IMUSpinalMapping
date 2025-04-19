@@ -10,7 +10,7 @@
 #include "SensorQueue.h"
 #include "AHRS_mahony_filter.h"
 
-#define FILTER_UPDATE_RATE_HZ 100
+#define FILTER_UPDATE_RATE_HZ 10
 
 
 // Forward declaration to avoid circular dependency
@@ -39,7 +39,7 @@ public:
   void initialize(SensorManager *sensorMgr, CalibrationManager *calMgr);
 
   // Configure filtering options
-  void configureFiltering(bool enableAdaptiveFiltering, bool enableAnatomicalConstraints, bool useQuaternionMode);
+  void configureFiltering(bool enableAdaptiveFiltering, bool enableAnatomicalConstraints);
 
   // Process and filter sensors
   void processAllSensors();
@@ -98,9 +98,6 @@ private:
 
   // Magnetic declination adjustment (in degrees)
   static constexpr float MAGNETIC_DECLINATION = 1.5f;  // Constant for Belgium
-
-  // Filter coefficient (0.98 = 98% gyro, 2% accel)
-  static constexpr float ALPHA = 0.98f;
 
   // Moving average filter buffer
   static const int FILTER_SAMPLES = 10;

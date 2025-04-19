@@ -49,10 +49,9 @@ void FilterManager::initialize(SensorManager* sensorMgr, CalibrationManager* cal
   }
 }
 
-void FilterManager::configureFiltering(bool enableAdaptiveFiltering, bool enableAnatomicalConstraints, bool useQuaternionMode) {
+void FilterManager::configureFiltering(bool enableAdaptiveFiltering, bool enableAnatomicalConstraints) {
   adaptiveFilteringEnabled = enableAdaptiveFiltering;
   anatomicalConstraintsEnabled = enableAnatomicalConstraints;
-  useQuaternions = useQuaternionMode;
 }
 
 // ===== Enhanced Filtering Algorithms =====
@@ -259,11 +258,9 @@ void FilterManager::processAllSensors() {
     calibrationManager->calibrateGyroData(sensorId, gx, gy, gz, temp, cal_gx, cal_gy, cal_gz);
     calibrationManager->calibrateMagData(sensorId, mx, my, mz, cal_mx, cal_my, cal_mz);
 
-    mahonyFilters[sensorId]->update(cal_gx, cal_gy, cal_gz,
-        filteredData[sensorId].accel[0], filteredData[sensorId].accel[1], filteredData[sensorId].accel[2],
-        filteredData[sensorId].mag[0], filteredData[sensorId].mag[1], filteredData[sensorId].mag[2]);
+    mahonyFilters[sensorId]->update(cal_gx, cal_gy, cal_gz, cal_ax, cal_ay, cal_az, cal_mx, cal_my, cal_mz);
 
-    // Filtered data (basic moving average + Kalman filtering)
+    // Filtered data
     float fa_x = cal_ax;
     float fa_y = cal_ay;
     float fa_z = cal_az;

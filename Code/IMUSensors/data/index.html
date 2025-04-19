@@ -1,10 +1,701 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>ESP Home</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMU Sensor Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .sensor-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            transition: transform 0.3s ease;
+        }
+        .sensor-card:hover {
+            transform: translateY(-5px);
+        }
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .sensor-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .active {
+            background-color: #2ecc71;
+        }
+        .inactive {
+            background-color: #e74c3c;
+        }
+        .sensor-data {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .data-item {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .data-label {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        .data-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .visualizer {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .model-container {
+            width: 150px;
+            height: 150px;
+            perspective: 300px;
+            position: relative;
+        }
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.3s ease;
+        }
+        .cube-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #3498db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            opacity: 0.7;
+        }
+        .front { 
+            transform: translateZ(75px);
+            background-color: rgba(52, 152, 219, 0.5);
+        }
+        .back { 
+            transform: rotateY(180deg) translateZ(75px);
+            background-color: rgba(46, 204, 113, 0.5);
+        }
+        .right { 
+            transform: rotateY(90deg) translateZ(75px);
+            background-color: rgba(155, 89, 182, 0.5);
+        }
+        .left { 
+            transform: rotateY(-90deg) translateZ(75px);
+            background-color: rgba(241, 196, 15, 0.5);
+        }
+        .top { 
+            transform: rotateX(90deg) translateZ(75px);
+            background-color: rgba(231, 76, 60, 0.5);
+        }
+        .bottom { 
+            transform: rotateX(-90deg) translateZ(75px);
+            background-color: rgba(26, 188, 156, 0.5);
+        }
+        .axis-label {
+            position: absolute;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .x-axis { 
+            right: -25px;
+            top: 50%;
+            color: #e74c3c;
+        }
+        .y-axis { 
+            bottom: -25px;
+            left: 50%;
+            color: #3498db;
+        }
+        .z-axis { 
+            left: 50%;
+            top: -25px;
+            color: #2ecc71;
+        }
+        .controls {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .control-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .status-panel {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        .connection-status {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .status-label {
+            display: inline-block;
+            width: 150px;
+            font-weight: bold;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .danger-btn {
+            background-color: #e74c3c;
+        }
+        .danger-btn:hover {
+            background-color: #c0392b;
+        }
+        .success-btn {
+            background-color: #2ecc71;
+        }
+        .success-btn:hover {
+            background-color: #27ae60;
+        }
+        .warning-btn {
+            background-color: #f39c12;
+        }
+        .warning-btn:hover {
+            background-color: #d35400;
+        }
+        #error-message {
+            display: none;
+            background-color: #ffdddd;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .chart-container {
+            height: 200px;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
-  <h1>ESP Web Server is working! 🎉</h1>
-  <a href="/imu-visualization.html">Go to IMU Visualization</a>
+    <div class="container">
+        <header>
+            <h1>IMU Sensor Dashboard</h1>
+            <p>Real-time monitoring and visualization of ICM-20948 sensors</p>
+        </header>
+
+        <div id="error-message"></div>
+
+        <div class="controls">
+            <h2>System Controls</h2>
+            <div class="control-row">
+                <button id="calibrate-btn" class="warning-btn">Calibrate Sensors</button>
+                <button id="reset-btn" class="danger-btn">Reset Orientation</button>
+                <button id="save-btn" class="success-btn">Save Calibration</button>
+            </div>
+            <div class="connection-status">
+                <span class="status-label">WebSocket:</span>
+                <span id="websocket-status">Connecting...</span>
+                <span class="status-indicator" id="ws-indicator"></span>
+            </div>
+        </div>
+
+        <div id="sensor-container" class="sensor-grid">
+            <!-- Sensor cards will be dynamically generated here -->
+        </div>
+
+        <div class="status-panel">
+            <h2>System Information</h2>
+            <div class="connection-status">
+                <span class="status-label">Total Sensors:</span>
+                <span id="sensor-count">0 active</span>
+            </div>
+            <div class="connection-status">
+                <span class="status-label">Update Rate:</span>
+                <span id="update-rate">0 ms</span>
+            </div>
+            <div class="connection-status">
+                <span class="status-label">Last Update:</span>
+                <span id="last-update">Never</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script>
+        // Configuration
+        const MAX_SENSOR_UNITS = 4; // Match your NO_OF_UNITS define
+
+        // State variables
+        let websocket = null;
+        let sensorData = {};
+        let charts = {};
+        let lastUpdateTime = 0;
+        let updateCounter = 0;
+        let updateRates = [];
+
+        // DOM Elements
+        const sensorContainer = document.getElementById('sensor-container');
+        const wsIndicator = document.getElementById('ws-indicator');
+        const wsStatus = document.getElementById('websocket-status');
+        const sensorCount = document.getElementById('sensor-count');
+        const updateRateEl = document.getElementById('update-rate');
+        const lastUpdateEl = document.getElementById('last-update');
+        const errorMessage = document.getElementById('error-message');
+        const calibrateBtn = document.getElementById('calibrate-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const saveBtn = document.getElementById('save-btn');
+
+        // Initialize
+        function init() {
+            // Create placeholder cards for all possible sensors
+            for (let i = 0; i < MAX_SENSOR_UNITS; i++) {
+                createSensorCard(i);
+            }
+            
+            // Connect to WebSocket
+            connectWebSocket();
+            
+            // Set up button event listeners
+            calibrateBtn.addEventListener('click', calibrateSensors);
+            resetBtn.addEventListener('click', resetOrientation);
+            saveBtn.addEventListener('click', saveCalibration);
+        }
+
+        // Create sensor card with visualization
+        function createSensorCard(sensorId) {
+            const card = document.createElement('div');
+            card.className = 'sensor-card';
+            card.id = `sensor-${sensorId}`;
+            
+            card.innerHTML = `
+                <div class="sensor-header">
+                    <span class="sensor-title">Sensor Unit ${sensorId + 1}</span>
+                    <span>
+                        <span class="status-indicator inactive" id="status-${sensorId}"></span>
+                        <span id="status-text-${sensorId}">Inactive</span>
+                    </span>
+                </div>
+                <div class="sensor-data">
+                    <div class="data-item">
+                        <div class="data-label">Roll (X)</div>
+                        <div class="data-value" id="roll-${sensorId}">0.00°</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-label">Pitch (Y)</div>
+                        <div class="data-value" id="pitch-${sensorId}">0.00°</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-label">Yaw (Z)</div>
+                        <div class="data-value" id="yaw-${sensorId}">0.00°</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-label">Update Rate</div>
+                        <div class="data-value" id="rate-${sensorId}">0 Hz</div>
+                    </div>
+                </div>
+                <div class="visualizer">
+                    <div class="model-container">
+                        <div class="cube" id="cube-${sensorId}">
+                            <div class="cube-face front">Front</div>
+                            <div class="cube-face back">Back</div>
+                            <div class="cube-face right">Right</div>
+                            <div class="cube-face left">Left</div>
+                            <div class="cube-face top">Top</div>
+                            <div class="cube-face bottom">Bottom</div>
+                        </div>
+                        <span class="axis-label x-axis">X</span>
+                        <span class="axis-label y-axis">Y</span>
+                        <span class="axis-label z-axis">Z</span>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chart-${sensorId}"></canvas>
+                </div>
+            `;
+            
+            sensorContainer.appendChild(card);
+            
+            // Initialize chart for this sensor
+            initChart(sensorId);
+        }
+
+        // Initialize chart for a sensor
+        function initChart(sensorId) {
+            const ctx = document.getElementById(`chart-${sensorId}`).getContext('2d');
+            
+            // Initialize with empty data
+            const data = {
+                labels: Array(30).fill(''),
+                datasets: [
+                    {
+                        label: 'Roll',
+                        data: Array(30).fill(null),
+                        borderColor: '#e74c3c',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Pitch',
+                        data: Array(30).fill(null),
+                        borderColor: '#3498db',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Yaw',
+                        data: Array(30).fill(null),
+                        borderColor: '#2ecc71',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }
+                ]
+            };
+            
+            charts[sensorId] = new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0
+                    },
+                    scales: {
+                        y: {
+                            min: -180,
+                            max: 180,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Connect to WebSocket
+        function connectWebSocket() {
+            // Determine WebSocket URL (assumes same host as the page)
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${protocol}${window.location.host}/ws`;
+            
+            // Close existing connection if any
+            if (websocket) {
+                websocket.close();
+            }
+            
+            // Create new WebSocket connection
+            websocket = new WebSocket(wsUrl);
+            
+            // Set up event handlers
+            websocket.onopen = onWebSocketOpen;
+            websocket.onclose = onWebSocketClose;
+            websocket.onerror = onWebSocketError;
+            websocket.onmessage = onWebSocketMessage;
+            
+            // Update status to connecting
+            updateWebSocketStatus('connecting');
+        }
+
+        // WebSocket event handlers
+        function onWebSocketOpen(event) {
+            updateWebSocketStatus('connected');
+            hideError();
+        }
+        
+        function onWebSocketClose(event) {
+            updateWebSocketStatus('disconnected');
+            showError('WebSocket connection closed. Attempting to reconnect...');
+            
+            // Attempt to reconnect after delay
+            setTimeout(connectWebSocket, 5000);
+        }
+        
+        function onWebSocketError(event) {
+            updateWebSocketStatus('error');
+            showError('WebSocket error occurred. Check console for details.');
+            console.error('WebSocket error:', event);
+        }
+        
+        function onWebSocketMessage(event) {
+            try {
+                // Parse received JSON data
+                const data = JSON.parse(event.data);
+                
+                // Calculate update rate
+                const now = Date.now();
+                if (lastUpdateTime > 0) {
+                    const updateInterval = now - lastUpdateTime;
+                    updateRates.push(updateInterval);
+                    
+                    // Keep only the last 10 values for averaging
+                    if (updateRates.length > 10) {
+                        updateRates.shift();
+                    }
+                    
+                    // Calculate average update rate
+                    const avgUpdateRate = updateRates.reduce((sum, val) => sum + val, 0) / updateRates.length;
+                    updateRateEl.textContent = `${avgUpdateRate.toFixed(1)} ms`;
+                }
+                
+                lastUpdateTime = now;
+                lastUpdateEl.textContent = new Date().toLocaleTimeString();
+                
+                // Process sensors data
+                if (data.sensors && Array.isArray(data.sensors)) {
+                    // Count active sensors
+                    sensorCount.textContent = `${data.sensors.length} active`;
+                    
+                    // Process each sensor's data
+                    data.sensors.forEach(sensor => {
+                        // Update sensor card with new data
+                        updateSensorCard(sensor.id, sensor.orientation);
+                    });
+                    
+                    // Set all unmentioned sensors to inactive
+                    const activeSensorIds = data.sensors.map(s => s.id);
+                    for (let i = 0; i < MAX_SENSOR_UNITS; i++) {
+                        if (!activeSensorIds.includes(i)) {
+                            setSensorInactive(i);
+                        }
+                    }
+                }
+                
+                // Update counter for calculating update frequency
+                updateCounter++;
+                
+            } catch (error) {
+                console.error('Error processing WebSocket message:', error);
+                showError('Error processing sensor data. See console for details.');
+            }
+        }
+
+        // Update WebSocket connection status indicator
+        function updateWebSocketStatus(status) {
+            switch (status) {
+                case 'connected':
+                    wsStatus.textContent = 'Connected';
+                    wsIndicator.className = 'status-indicator active';
+                    break;
+                case 'disconnected':
+                    wsStatus.textContent = 'Disconnected';
+                    wsIndicator.className = 'status-indicator inactive';
+                    break;
+                case 'connecting':
+                    wsStatus.textContent = 'Connecting...';
+                    wsIndicator.className = 'status-indicator';
+                    wsIndicator.style.backgroundColor = '#f39c12';
+                    break;
+                case 'error':
+                    wsStatus.textContent = 'Error';
+                    wsIndicator.className = 'status-indicator';
+                    wsIndicator.style.backgroundColor = '#e74c3c';
+                    break;
+            }
+        }
+
+        // Update sensor card with new data
+        function updateSensorCard(sensorId, orientation) {
+            // Get elements
+            const statusIndicator = document.getElementById(`status-${sensorId}`);
+            const statusText = document.getElementById(`status-text-${sensorId}`);
+            const rollValue = document.getElementById(`roll-${sensorId}`);
+            const pitchValue = document.getElementById(`pitch-${sensorId}`);
+            const yawValue = document.getElementById(`yaw-${sensorId}`);
+            const rateValue = document.getElementById(`rate-${sensorId}`);
+            const cube = document.getElementById(`cube-${sensorId}`);
+            
+            // Update status
+            statusIndicator.className = 'status-indicator active';
+            statusText.textContent = 'Active';
+            
+            // Update orientation values
+            rollValue.textContent = `${orientation.roll.toFixed(2)}°`;
+            pitchValue.textContent = `${orientation.pitch.toFixed(2)}°`;
+            yawValue.textContent = `${orientation.yaw.toFixed(2)}°`;
+            
+            // Calculate update rate specific to this sensor
+            if (!sensorData[sensorId] || !sensorData[sensorId].lastUpdate) {
+                sensorData[sensorId] = {
+                    lastUpdate: Date.now(),
+                    updateRates: []
+                };
+            } else {
+                const now = Date.now();
+                const updateInterval = now - sensorData[sensorId].lastUpdate;
+                sensorData[sensorId].updateRates.push(updateInterval);
+                
+                // Keep only the last 10 values
+                if (sensorData[sensorId].updateRates.length > 10) {
+                    sensorData[sensorId].updateRates.shift();
+                }
+                
+                // Calculate average update rate
+                const avgRate = sensorData[sensorId].updateRates.reduce((sum, val) => sum + val, 0) / sensorData[sensorId].updateRates.length;
+                const frequency = 1000 / avgRate; // Convert ms to Hz
+                rateValue.textContent = `${frequency.toFixed(1)} Hz`;
+                
+                sensorData[sensorId].lastUpdate = now;
+            }
+            
+            // Update 3D cube orientation
+            updateCubeOrientation(cube, orientation.roll, orientation.pitch, orientation.yaw);
+            
+            // Update chart
+            updateChart(sensorId, orientation.roll, orientation.pitch, orientation.yaw);
+        }
+
+        // Update 3D cube to represent sensor orientation
+        function updateCubeOrientation(cubeElement, roll, pitch, yaw) {
+            // Apply CSS transform to the cube
+            // Convert degrees to radians
+            const rollRad = roll * Math.PI / 180;
+            const pitchRad = pitch * Math.PI / 180;
+            const yawRad = yaw * Math.PI / 180;
+            
+            // Apply rotations in correct order (Z-Y-X / yaw-pitch-roll)
+            // Note: CSS transform functions are applied in reverse order
+            cubeElement.style.transform = 
+                `rotateX(${roll}deg) rotateY(${pitch}deg) rotateZ(${yaw}deg)`;
+        }
+
+        // Update the chart for a specific sensor
+        function updateChart(sensorId, roll, pitch, yaw) {
+            if (!charts[sensorId]) return;
+            
+            const chart = charts[sensorId];
+            
+            // Remove oldest data point and add new one for each dataset
+            chart.data.datasets[0].data.shift();
+            chart.data.datasets[0].data.push(roll);
+            
+            chart.data.datasets[1].data.shift();
+            chart.data.datasets[1].data.push(pitch);
+            
+            chart.data.datasets[2].data.shift();
+            chart.data.datasets[2].data.push(yaw);
+            
+            // Update chart
+            chart.update();
+        }
+
+        // Set a sensor as inactive
+        function setSensorInactive(sensorId) {
+            const statusIndicator = document.getElementById(`status-${sensorId}`);
+            const statusText = document.getElementById(`status-text-${sensorId}`);
+            
+            if (statusIndicator && statusText) {
+                statusIndicator.className = 'status-indicator inactive';
+                statusText.textContent = 'Inactive';
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        // Hide error message
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+
+        // Button action handlers
+        function calibrateSensors() {
+            // This would send a calibration command to the server
+            // For now, just show a message
+            showError('Calibration feature is not implemented in the web interface yet.');
+        }
+
+        function resetOrientation() {
+            // This would send a reset orientation command to the server
+            // For now, just show a message
+            showError('Reset orientation feature is not implemented in the web interface yet.');
+        }
+
+        function saveCalibration() {
+            // This would send a save calibration command to the server
+            // For now, just show a message
+            showError('Save calibration feature is not implemented in the web interface yet.');
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', init);
+    </script>
 </body>
 </html>

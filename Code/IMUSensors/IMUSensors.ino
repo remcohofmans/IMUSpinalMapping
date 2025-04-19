@@ -17,8 +17,10 @@
 #include <Wire.h>
 
 // WiFi credentials
-const char* ssid = "telenet-27CE5";
-const char* password = "jEy6kRyfzBnY";
+// const char* ssid = "telenet-27CE5";
+const char* ssid = "telenet-4768302";
+//const char* password = "jEy6kRyfzBnY";
+const char* password = "jewfkfTjy4e8";
 const char* username = nullptr;
 
 // Create global manager instances
@@ -124,8 +126,6 @@ void setup(void) {
   }
   // For vertical orientation with X pointing down:
   // filterManager.configureAxisMapping(2, 1, 0, 1, 1, -1);    // This maps X->Z, Y->Y, Z->X with appropriate sign changes
-    
-  
 }
 
 void loop() {
